@@ -1,0 +1,33 @@
+Objective 
+Design and implement an automated reporting solution that generates a weekly Trustpilot performance report for multiple brands. The report should be automatically prepared every Monday and require no manual data collection.
+Core Requirements
+ Data Collection
+Create an automated process that retrieves data from Trustpilot.
+The report must include the following weekly metrics per brand: 
+ Review Volume:
+Total number of reviews per brand
+New reviews added this week
+Week-over-week (WoW) comparison (absolute and % change)
+Review count by languages (indicating issues with specific markets) 
+Review source (invited/verified vs organic).
+Rating Performance:
+Average star rating
+Week-over-week change in average rating
+Sentiment Breakdown
+Number of positive reviews (4,5)
+Number of neutral (3) 
+Number of negative reviews (1,2)
+Brand Response Performance
+Response rate (% of reviews responded to by the brand)
+AVG Response time for reviews
+Review Content Analysis
+Top positive themes/topics
+Top negative themes/topics
+
+Bonus / Nice-to-Have
+Trend detection in recurring complaints, AI-generated executive summary, report about updated reviews
+
+TrustPilot pages to test on: 
+https://www.trustpilot.com/review/ketogo.app
+https://www.trustpilot.com/review/certifiedfasting.com
+https://www.trustpilot.com/review/best.me
