@@ -53,6 +53,10 @@ class TrustpilotScraper:
         if not business_unit:
             return
         
+        # Build star rating SVG URL based on stars
+        stars = business_unit.get('stars', 0)
+        star_rating_svg = f"https://cdn.trustpilot.net/brand-assets/4.1.0/stars/stars-{stars}.svg" if stars else None
+        
         self.db.query("""
             UPDATE companies SET
                 business_id = %s,
@@ -62,6 +66,7 @@ class TrustpilotScraper:
                 total_reviews = %s,
                 trust_score = %s,
                 stars = %s,
+                star_rating_svg = %s,
                 is_claimed = %s,
                 categories = %s,
                 verification = %s,
@@ -77,6 +82,7 @@ class TrustpilotScraper:
             business_unit.get('numberOfReviews'),
             business_unit.get('trustScore'),
             business_unit.get('stars'),
+            star_rating_svg,
             business_unit.get('isClaimed'),
             json.dumps(business_unit.get('categories', [])),
             json.dumps(business_unit.get('verification', {})),
@@ -86,10 +92,12 @@ class TrustpilotScraper:
         ))
     
     def _save_ai_summary(self, company_id, page_props):
-        """Save/update AI summary"""
+        """Save/update AI summary from correct location in page_props"""
+        # AI summary is at same level as businessUnit and reviews
         ai_summary = page_props.get('aiSummary', {})
         
         if not ai_summary:
+            print("  ℹ️  No AI summary available for this company")
             return
         
         # Check if summary exists
@@ -107,8 +115,8 @@ class TrustpilotScraper:
                     created_at = NOW()
                 WHERE company_id = %s;
             """, (
-                ai_summary.get('summaryText'),
-                ai_summary.get('language'),
+                ai_summary.get('summary'),
+                ai_summary.get('lang'),
                 ai_summary.get('modelVersion'),
                 company_id
             ))
@@ -119,10 +127,12 @@ class TrustpilotScraper:
                 ) VALUES (%s, %s, %s, %s);
             """, (
                 company_id,
-                ai_summary.get('summaryText'),
-                ai_summary.get('language'),
+                ai_summary.get('summary'),
+                ai_summary.get('lang'),
                 ai_summary.get('modelVersion')
             ))
+        
+        print(f"  ✓ AI summary saved ({ai_summary.get('lang', 'unknown')} - {ai_summary.get('modelVersion', 'unknown')})")
     
     def _fetch_and_save_topics(self, company_id, business_id):
         """Fetch top mentions/topics from separate API"""
@@ -184,8 +194,8 @@ class TrustpilotScraper:
                     company_id, review_id, rating, title, text,
                     author_name, author_id, author_country_code, author_review_count,
                     review_date, experience_date, verified, language,
-                    reply_message, reply_date, likes, source, labels
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    reply_message, reply_date, likes, source, labels, is_edited
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """, (
                 company_id,
                 review_id,
@@ -204,7 +214,8 @@ class TrustpilotScraper:
                 reply.get("publishedDate") if reply else None,
                 review.get("likes", 0),
                 review.get("source"),
-                json.dumps(labels)
+                json.dumps(labels),
+                dates.get("updatedDate") is not None  # is_edited = True if updatedDate exists
             ))
             return True
         return False
@@ -290,7 +301,7 @@ class TrustpilotScraper:
                     # Save company metadata
                     self._save_company_metadata(company_id, page_props)
                     
-                    # Save AI summary
+                    # Save AI summary (now from correct location)
                     self._save_ai_summary(company_id, page_props)
                     
                     # Fetch and save topics from separate API

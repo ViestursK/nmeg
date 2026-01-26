@@ -38,6 +38,7 @@ def reset_database():
             display_name VARCHAR(255),
             website_url TEXT,
             logo_url TEXT,
+            star_rating_svg VARCHAR(500),
             total_reviews INTEGER,
             trust_score NUMERIC(3,2),
             stars INTEGER,
@@ -67,7 +68,8 @@ def reset_database():
     """)
     print("✅ Created 'ai_summaries' table")
     
-    # Reviews table
+   # In reset.py, update the reviews table creation:
+
     db.query("""
         CREATE TABLE IF NOT EXISTS reviews (
             id SERIAL PRIMARY KEY,
@@ -76,6 +78,7 @@ def reset_database():
             rating INTEGER,
             title TEXT,
             text TEXT,
+            text_en TEXT,  -- ADD THIS LINE
             author_name VARCHAR(255),
             author_id VARCHAR(255),
             author_country_code VARCHAR(10),
@@ -120,6 +123,24 @@ def reset_database():
     db.query("CREATE INDEX IF NOT EXISTS idx_snapshots_company ON weekly_snapshots(company_id);")
     db.query("CREATE INDEX IF NOT EXISTS idx_ai_summaries_company ON ai_summaries(company_id);")
     print("✅ Created indexes")
+    
+    # Add to reset.py
+
+    db.query("""
+        CREATE TABLE IF NOT EXISTS topics (
+            id SERIAL PRIMARY KEY,
+            topic_key VARCHAR(100) UNIQUE NOT NULL,
+            topic_name VARCHAR(255) NOT NULL,
+            search_terms TEXT[] NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    print("✅ Created 'topics' table")
+
+    # Create index for fast searches
+    db.query("CREATE INDEX IF NOT EXISTS idx_topics_key ON topics(topic_key);")
+    
     
     db.close()
     print("\n🎉 Database reset complete! Ready to scrape.")

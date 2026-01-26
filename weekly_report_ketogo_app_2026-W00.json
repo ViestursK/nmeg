@@ -1,0 +1,233 @@
+{
+  "company": {
+    "brand_name": "KetoGo",
+    "business_id": "63ba7b70a77326e55c71db1b",
+    "website": "https://ketogo.app",
+    "logo_url": "//s3-eu-west-1.amazonaws.com/tpd/logos/63ba7b70a77326e55c71db1b/0x0.png",
+    "star_rating_svg": "https://cdn.trustpilot.net/brand-assets/4.1.0/stars/stars-2.svg",
+    "total_reviews_all_time": 2337,
+    "trust_score": 1.8,
+    "stars": 2,
+    "is_claimed": true,
+    "categories": [
+      "Fitness and Nutrition Service",
+      "Wellness Program",
+      "Weight Loss Service"
+    ],
+    "ai_summary": {
+      "summary_text": "Most reviewers were unhappy with their experience overall. Customers express significant dissatisfaction with payments, subscriptions, and pricing. Many consumers report unexpected charges and deductions from their accounts, often without explicit consent or clear notification. A number of reviewers describe difficulties in canceling subscriptions, with some alleging that cancellation attempts were ignored or resulted in continued charges.\n\nPeople also report issues with obtaining refunds, even when services were not used or were canceled shortly after purchase. Some reviewers label the company as a scam, citing unauthorized transactions and deceptive practices. There are mixed opinions regarding the product itself, with a lack of consensus among reviewers.",
+      "updated_at": "2026-01-26T12:58:39.754680Z"
+    },
+    "top_mentions_overall": [
+      "app",
+      "cancellation",
+      "subscription",
+      "contact",
+      "fraud",
+      "refund",
+      "payment",
+      "spam",
+      "service",
+      "website",
+      "recommendation",
+      "customer_service",
+      "warning",
+      "complaint",
+      "mistake",
+      "order",
+      "marketing"
+    ]
+  },
+  "report_metadata": {
+    "generated_at": "2026-01-26T12:59:03.499749",
+    "iso_week": "2026-W00",
+    "week_start": "2025-12-22",
+    "week_end": "2025-12-28"
+  },
+  "week_stats": {
+    "review_volume": {
+      "total_this_week": 39,
+      "total_last_week": 30,
+      "wow_change": 9,
+      "wow_change_pct": 30.0,
+      "by_language": {
+        "en": 8,
+        "de": 7,
+        "es": 6,
+        "fr": 5,
+        "pl": 5,
+        "it": 5,
+        "sv": 1,
+        "nl": 1,
+        "fi": 1
+      },
+      "by_country": [
+        {
+          "country": "DE",
+          "review_count": 7
+        },
+        {
+          "country": "PL",
+          "review_count": 5
+        },
+        {
+          "country": "FR",
+          "review_count": 4
+        },
+        {
+          "country": "IT",
+          "review_count": 4
+        },
+        {
+          "country": "ES",
+          "review_count": 3
+        },
+        {
+          "country": "CH",
+          "review_count": 2
+        },
+        {
+          "country": "US",
+          "review_count": 2
+        },
+        {
+          "country": "CA",
+          "review_count": 1
+        },
+        {
+          "country": "GB",
+          "review_count": 1
+        },
+        {
+          "country": "GR",
+          "review_count": 1
+        }
+      ],
+      "by_source": {
+        "verified_invited": 0,
+        "organic": 39
+      }
+    },
+    "rating_performance": {
+      "avg_rating_this_week": 1.1,
+      "avg_rating_last_week": 1.03,
+      "wow_change": 0.07
+    },
+    "sentiment": {
+      "positive": {
+        "count": 1,
+        "percentage": 2.56
+      },
+      "neutral": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "negative": {
+        "count": 38,
+        "percentage": 97.44
+      }
+    },
+    "rating_distribution": {
+      "5_stars": 1,
+      "4_stars": 0,
+      "3_stars": 0,
+      "2_stars": 0,
+      "1_star": 38
+    },
+    "response_performance": {
+      "reviews_with_response": 39,
+      "reviews_edited": 5,
+      "response_rate_pct": 100.0,
+      "reviews_without_response": 0,
+      "avg_response_time_hours": 35.32,
+      "avg_response_time_days": 1.47
+    },
+    "content_analysis": {
+      "positive_themes": [
+        {
+          "topic": "Application",
+          "count": 1
+        },
+        {
+          "topic": "Email",
+          "count": 1
+        },
+        {
+          "topic": "Meals",
+          "count": 1
+        },
+        {
+          "topic": "Price",
+          "count": 1
+        },
+        {
+          "topic": "Process",
+          "count": 1
+        },
+        {
+          "topic": "Question",
+          "count": 1
+        },
+        {
+          "topic": "Refund",
+          "count": 1
+        },
+        {
+          "topic": "Subscription",
+          "count": 1
+        },
+        {
+          "topic": "Transaction",
+          "count": 1
+        },
+        {
+          "topic": "Upgrade",
+          "count": 1
+        }
+      ],
+      "neutral_themes": [],
+      "negative_themes": [
+        {
+          "topic": "Application",
+          "count": 11
+        },
+        {
+          "topic": "Email",
+          "count": 5
+        },
+        {
+          "topic": "Subscription",
+          "count": 5
+        },
+        {
+          "topic": "Service",
+          "count": 4
+        },
+        {
+          "topic": "Refund",
+          "count": 3
+        },
+        {
+          "topic": "Product",
+          "count": 2
+        },
+        {
+          "topic": "Complaint",
+          "count": 2
+        },
+        {
+          "topic": "Cars",
+          "count": 2
+        },
+        {
+          "topic": "Process",
+          "count": 2
+        },
+        {
+          "topic": "Premium",
+          "count": 2
+        }
+      ]
+    }
+  }
+}
