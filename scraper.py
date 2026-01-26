@@ -1,263 +1,352 @@
-#!/usr/bin/env python3
-"""
-Trustpilot Scraper - PostgreSQL Version
-Saves all data directly to PostgreSQL database
-"""
-
-import json
+import os
 import requests
-import re
-from datetime import datetime, timedelta
 import time
-from trustpilot_db import TrustpilotDB
+from datetime import datetime
+from dotenv import load_dotenv
+from bs4 import BeautifulSoup
+import json
 
-# =============================================================================
-# CONFIGURATION (Edit these)
-# =============================================================================
+load_dotenv()
 
-BRAND_DOMAIN = "simple-life-app.com"  # Change this to scrape different brand
-MAX_PAGES = 10  # Number of pages to scrape
-
-# =============================================================================
-# CONSTANTS
-# =============================================================================
-
-QUERY_PARAMS = "languages=all"  # No date filter = full scrape
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-}
-
-# Load topic translation map
-with open('tp_topics.json', encoding='utf-8') as f:
-    ALL_TOPICS = json.load(f)
-    print(f"[+] Loaded {len(ALL_TOPICS)} Trustpilot topics")
-
-
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
-
-def extract_next_data(html):
-    """Extract __NEXT_DATA__ JSON from HTML"""
-    match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
-    if match:
-        return json.loads(match.group(1))
-    return None
-
-def get_top_mentions(business_id):
-    """Fetch and translate top mentions/topics for the business"""
-    url = f'https://www.trustpilot.com/api/businessunitprofile/businessunit/{business_id}/service-reviews/topics'
-    try:
-        response = requests.get(url, headers=HEADERS)
-        response_data = json.loads(response.text)
+class TrustpilotScraper:
+    def __init__(self, db):
+        self.db = db
+        self.jwt_token = os.getenv("TRUSTPILOT_JWT")
         
-        options = response_data['topics']
+        if not self.jwt_token or self.jwt_token == "your.jwt.token":
+            print("⚠️  No JWT token configured - limited to ~10 pages")
+        else:
+            print("🔑 Authenticated")
         
-        translated_topics = []
-        for topic in options:
-            readable_name = ALL_TOPICS.get(topic, topic.replace('_', ' ').title())
-            translated_topics.append(readable_name)
-        
-        return translated_topics
-    except Exception as e:
-        print(f"  [!] Failed to fetch top mentions: {e}")
-        return []
-
-# =============================================================================
-# MAIN SCRAPER
-# =============================================================================
-
-def scrape_brand(brand_domain, max_pages=10, db=None):
-    """
-    Scrape a single brand and save to database
-    """
-    print(f"\n{'='*70}")
-    print(f"SCRAPING: {brand_domain}")
-    print(f"{'='*70}\n")
-    
-    BASE_URL_CLEAN = f"https://www.trustpilot.com/review/{brand_domain}"
-    BASE_URL = f"{BASE_URL_CLEAN}?{QUERY_PARAMS}"
-    
-    all_reviews = []
-    company_data = {}
-    business_id = None
-    
-    # Step 1: Fetch AI Summary from clean URL
-    print(f"[1] Fetching AI summary and company info...")
-    response_clean = requests.get(BASE_URL_CLEAN, headers=HEADERS)
-    
-    if response_clean.status_code != 200:
-        print(f"[!] Failed to fetch page: HTTP {response_clean.status_code}")
-        return None
-    
-    data_clean = extract_next_data(response_clean.text)
-    if not data_clean:
-        print("[!] Could not extract data from page")
-        return None
-    
-    # Step 2: Fetch filtered reviews
-    print(f"[2] Fetching filtered reviews...")
-    response = requests.get(BASE_URL, headers=HEADERS)
-    
-    if response.status_code != 200:
-        data = data_clean
-    else:
-        data = extract_next_data(response.text)
-        if not data:
-            data = data_clean
-    
-    try:
-        # Get AI summary from clean URL data
-        page_props_clean = data_clean["props"]["pageProps"]
-        business_unit = page_props_clean["businessUnit"]
-        
-        # Get reviews from filtered URL data
-        page_props = data["props"]["pageProps"]
-        
-        # Extract company information
-        company_data = {
-            "brand_name": business_unit["displayName"],
-            "business_id": business_unit["id"],
-            "website": business_unit.get("websiteUrl", "N/A"),
-            "logo_url": business_unit.get("profileImageUrl", ""),
-            "total_reviews": business_unit["numberOfReviews"],
-            "trust_score": business_unit["trustScore"],
-            "stars": business_unit.get("stars", business_unit["trustScore"]),
-            "is_claimed": business_unit.get("isClaimed", False),
-            "categories": [cat["name"] for cat in business_unit.get("categories", [])],
+    def _get_headers(self):
+        """Build request headers with JWT cookie"""
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Cache-Control": "max-age=0",
         }
         
-        # Fix logo URL
-        if company_data["logo_url"] and company_data["logo_url"].startswith("//"):
-            company_data["logo_url"] = "https:" + company_data["logo_url"]
-        
-        business_id = company_data["business_id"]
-        
-        # Get AI Summary
-        ai_summary_data = page_props_clean.get("aiSummary")
-        if ai_summary_data:
-            company_data["ai_summary"] = {
-                "summary": ai_summary_data.get("summary", "N/A"),
-                "updatedAt": ai_summary_data.get("updatedAt", "N/A"),
-                "language": ai_summary_data.get("lang", "en"),
-                "modelVersion": ai_summary_data.get("modelVersion", "N/A")
-            }
-            print("  [+] AI Summary extracted")
-        else:
-            company_data["ai_summary"] = None
-            print("  [!] No AI Summary available")
-        
-        # Get initial reviews
-        initial_reviews = page_props.get("reviews", [])
-        all_reviews.extend(initial_reviews)
-        print(f"  [+] Extracted {len(initial_reviews)} reviews from page 1")
-        
-        # Get Top Mentions
-        if business_id:
-            company_data["top_mentions"] = get_top_mentions(business_id)
-        
-        print(f"\n[+] Company Data Extracted:")
-        print(f"    Brand: {company_data['brand_name']}")
-        print(f"    Total Reviews: {company_data['total_reviews']}")
-        print(f"    Trust Score: {company_data['trust_score']}/5")
-        
-    except KeyError as e:
-        print(f"[!] Failed to extract company data: {e}")
-        return None
+        if self.jwt_token:
+            headers["Cookie"] = f"jwt={self.jwt_token};"
+            
+        return headers
     
-    # Pagination
-    if max_pages and max_pages > 1:
-        print(f"\n[3] Fetching additional pages (up to {max_pages-1} more)...")
-        page = 2
+    def _brand_exists(self, company_name):
+        """Check if brand already exists in database"""
+        result = self.db.query(
+            "SELECT id FROM companies WHERE name = %s LIMIT 1;",
+            (company_name,)
+        )
+        return bool(result)
+    
+    def _save_company_metadata(self, company_id, page_props):
+        """Save/update company metadata from businessUnit"""
+        business_unit = page_props.get('businessUnit', {})
         
-        while page <= max_pages:
-            print(f"\n  Fetching page {page}...")
-            url = f"{BASE_URL}&page={page}"
+        if not business_unit:
+            return
+        
+        self.db.query("""
+            UPDATE companies SET
+                business_id = %s,
+                display_name = %s,
+                website_url = %s,
+                logo_url = %s,
+                total_reviews = %s,
+                trust_score = %s,
+                stars = %s,
+                is_claimed = %s,
+                categories = %s,
+                verification = %s,
+                contact_info = %s,
+                activity = %s,
+                updated_at = NOW()
+            WHERE id = %s;
+        """, (
+            business_unit.get('id'),
+            business_unit.get('displayName'),
+            business_unit.get('websiteUrl'),
+            business_unit.get('profileImageUrl'),
+            business_unit.get('numberOfReviews'),
+            business_unit.get('trustScore'),
+            business_unit.get('stars'),
+            business_unit.get('isClaimed'),
+            json.dumps(business_unit.get('categories', [])),
+            json.dumps(business_unit.get('verification', {})),
+            json.dumps(business_unit.get('contactInfo', {})),
+            json.dumps(business_unit.get('activity', {})),
+            company_id
+        ))
+    
+    def _save_ai_summary(self, company_id, page_props):
+        """Save/update AI summary"""
+        ai_summary = page_props.get('aiSummary', {})
+        
+        if not ai_summary:
+            return
+        
+        # Check if summary exists
+        existing = self.db.query(
+            "SELECT id FROM ai_summaries WHERE company_id = %s;",
+            (company_id,)
+        )
+        
+        if existing:
+            self.db.query("""
+                UPDATE ai_summaries SET
+                    summary_text = %s,
+                    summary_language = %s,
+                    model_version = %s,
+                    created_at = NOW()
+                WHERE company_id = %s;
+            """, (
+                ai_summary.get('summaryText'),
+                ai_summary.get('language'),
+                ai_summary.get('modelVersion'),
+                company_id
+            ))
+        else:
+            self.db.query("""
+                INSERT INTO ai_summaries (
+                    company_id, summary_text, summary_language, model_version
+                ) VALUES (%s, %s, %s, %s);
+            """, (
+                company_id,
+                ai_summary.get('summaryText'),
+                ai_summary.get('language'),
+                ai_summary.get('modelVersion')
+            ))
+    
+    def _fetch_and_save_topics(self, company_id, business_id):
+        """Fetch top mentions/topics from separate API"""
+        if not business_id:
+            return
+        
+        url = f'https://www.trustpilot.com/api/businessunitprofile/businessunit/{business_id}/service-reviews/topics'
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
+            response.raise_for_status()
+            data = response.json()
             
-            response = requests.get(url, headers=HEADERS)
+            topics = data.get('topics', [])
             
-            if response.status_code == 404:
-                print(f"  [X] Reached end of pages")
-                break
+            if not topics:
+                return
             
-            data = extract_next_data(response.text)
-            if not data:
-                break
+            print(f"  🏷️  Found {len(topics)} topics")
+            
+            # Update ai_summaries with topics
+            existing = self.db.query(
+                "SELECT id FROM ai_summaries WHERE company_id = %s;",
+                (company_id,)
+            )
+            
+            if existing:
+                self.db.query("""
+                    UPDATE ai_summaries SET topics = %s WHERE company_id = %s;
+                """, (json.dumps(topics), company_id))
+            else:
+                # Create record with just topics
+                self.db.query("""
+                    INSERT INTO ai_summaries (company_id, topics) VALUES (%s, %s);
+                """, (company_id, json.dumps(topics)))
+                
+        except Exception as e:
+            print(f"  ⚠️  Failed to fetch topics: {e}")
+    
+    def _save_review(self, company_id, review):
+        """Save single review to database"""
+        review_id = review.get("id")
+        
+        # Check if review already exists
+        existing = self.db.query(
+            "SELECT id FROM reviews WHERE review_id = %s;",
+            (review_id,)
+        )
+        
+        if not existing:
+            consumer = review.get("consumer", {})
+            dates = review.get("dates", {})
+            labels = review.get("labels", {})
+            verification = labels.get("verification", {})
+            reply = review.get("reply")
+            
+            self.db.query("""
+                INSERT INTO reviews (
+                    company_id, review_id, rating, title, text,
+                    author_name, author_id, author_country_code, author_review_count,
+                    review_date, experience_date, verified, language,
+                    reply_message, reply_date, likes, source, labels
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """, (
+                company_id,
+                review_id,
+                review.get("rating"),
+                review.get("title"),
+                review.get("text"),
+                consumer.get("displayName"),
+                consumer.get("id"),
+                consumer.get("countryCode"),
+                consumer.get("numberOfReviews"),
+                dates.get("publishedDate"),
+                dates.get("experiencedDate"),
+                verification.get("isVerified", False),
+                review.get("language"),
+                reply.get("message") if reply else None,
+                reply.get("publishedDate") if reply else None,
+                review.get("likes", 0),
+                review.get("source"),
+                json.dumps(labels)
+            ))
+            return True
+        return False
+    
+    def scrape_and_save(self, company_domain, use_date_filter=None, batch_size=100):
+        """
+        Scrape reviews and save directly to database
+        
+        Args:
+            company_domain: e.g., "ketogo.app"
+            use_date_filter: If None, auto-detect based on brand existence
+            batch_size: Commit to DB every X reviews (default 100)
+        """
+        # Auto-detect if not specified
+        if use_date_filter is None:
+            use_date_filter = self._brand_exists(company_domain)
+        
+        # Get or create company
+        company = self.db.query(
+            "SELECT id FROM companies WHERE name = %s;",
+            (company_domain,)
+        )
+        
+        if not company:
+            self.db.query(
+                "INSERT INTO companies (name) VALUES (%s) RETURNING id;",
+                (company_domain,)
+            )
+            company = self.db.query("SELECT id FROM companies WHERE name = %s;", (company_domain,))
+        
+        company_id = company[0]["id"]
+        
+        # Build base URL
+        base_url = f"https://www.trustpilot.com/review/{company_domain}"
+        
+        # Build params - ORDER MATTERS!
+        params = {}
+        
+        # Only add date filter for existing brands (incremental mode)
+        if use_date_filter:
+            params["date"] = "last30days"
+            print(f"🔄 Incremental mode: Fetching last 30 days for {company_domain}")
+        else:
+            print(f"📥 Backfill mode: Fetching full history for {company_domain}")
+        
+        params["languages"] = "all"
+        
+        all_reviews = []
+        total_inserted = 0
+        page = 1
+        total_reviews = None
+        estimated_pages = None
+        
+        # Use session to maintain cookies
+        session = requests.Session()
+        session.headers.update(self._get_headers())
+        
+        while True:
+            params["page"] = page
             
             try:
-                reviews = data["props"]["pageProps"]["reviews"]
-                if not reviews:
+                response = session.get(base_url, params=params, timeout=30)
+                
+                if response.status_code == 404:
+                    print(f"\n⚠️  Reached end at page {page}")
                     break
                 
-                all_reviews.extend(reviews)
-                print(f"  [+] Extracted {len(reviews)} reviews (Total: {len(all_reviews)})")
+                response.raise_for_status()
                 
-            except KeyError:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                next_data = soup.find('script', {'id': '__NEXT_DATA__'})
+                
+                if not next_data:
+                    print(f"\n⚠️  Page {page}: No data found")
+                    break
+                
+                data = json.loads(next_data.string)
+                page_props = data.get('props', {}).get('pageProps', {})
+                reviews = page_props.get('reviews', [])
+                
+                # Extract and save metadata from first page
+                if page == 1:
+                    # Save company metadata
+                    self._save_company_metadata(company_id, page_props)
+                    
+                    # Save AI summary
+                    self._save_ai_summary(company_id, page_props)
+                    
+                    # Fetch and save topics from separate API
+                    business_unit = page_props.get('businessUnit', {})
+                    business_id = business_unit.get('id')
+                    if business_id:
+                        self._fetch_and_save_topics(company_id, business_id)
+                    
+                    # Get total count
+                    if not total_reviews:
+                        business_unit = page_props.get('businessUnit', {})
+                        num_reviews = business_unit.get('numberOfReviews')
+                        
+                        if isinstance(num_reviews, int):
+                            total_reviews = num_reviews
+                        elif isinstance(num_reviews, dict):
+                            total_reviews = num_reviews.get('total')
+                        
+                        if total_reviews:
+                            if use_date_filter:
+                                print(f"📊 Total reviews: {total_reviews:,} (filtering last 30 days)")
+                            else:
+                                estimated_pages = (total_reviews + 19) // 20
+                                print(f"📊 Total reviews: {total_reviews:,} (~{estimated_pages} pages)")
+                
+                if not reviews:
+                    print(f"\n✓ Completed at page {page}")
+                    break
+                
+                # Save reviews immediately
+                for review in reviews:
+                    if self._save_review(company_id, review):
+                        total_inserted += 1
+                
+                all_reviews.extend(reviews)
+                
+                # Show progress
+                if estimated_pages:
+                    progress = (page / estimated_pages) * 100
+                    print(f"  Page {page}/{estimated_pages}: {len(reviews)} reviews | Saved: {total_inserted:,} ({progress:.0f}%)")
+                else:
+                    print(f"  Page {page}: {len(reviews)} reviews | Saved: {total_inserted:,}")
+                
+            except Exception as e:
+                print(f"\n❌ Error on page {page}: {e}")
                 break
             
             page += 1
-            time.sleep(2)
-    
-    
-    print(f"\n{'='*70}")
-    print("EXTRACTION COMPLETE")
-    print(f"{'='*70}")
-    print(f"Total Reviews Extracted: {len(all_reviews)}")
-    
-    # Save to database if db connection provided
-    if db:
-        print(f"\n[4] Saving to database...")
         
-        # Save company
-        company_id = db.upsert_company(company_data)
+        # Update company last updated timestamp
+        self.db.query(
+            "UPDATE companies SET updated_at = NOW() WHERE id = %s;",
+            (company_id,)
+        )
         
-        # Save top mentions
-        if company_data.get('top_mentions'):
-            db.insert_top_mentions(company_id, company_data['top_mentions'])
+        print(f"\n✅ Fetched: {len(all_reviews):,} reviews")
+        print(f"✅ Saved: {total_inserted:,} new reviews")
         
-        # Save reviews
-        db.insert_reviews_batch(company_id, all_reviews)
-        
-        # Get final stats
-        stats = db.get_company_stats(business_id)
-        print(f"\n[✓] Database Summary:")
-        print(f"    Brand: {stats['brand_name']}")
-        print(f"    Stored Reviews: {stats['stored_reviews']}")
-        print(f"    Past Week: {stats['week_reviews']}")
-        
-        return company_id
-    
-    return company_data
-
-# =============================================================================
-# MAIN
-# =============================================================================
-
-def main():
-    print("\n" + "="*70)
-    print("TRUSTPILOT SCRAPER - PostgreSQL Version")
-    print("="*70 + "\n")
-    
-    # Initialize database
-    db = TrustpilotDB()
-    
-    # Initialize schema (comment out after first run)
-    print("[*] Initializing database schema...")
-    db.init_schema()
-    
-    try:
-        # Scrape the brand
-        company_id = scrape_brand(BRAND_DOMAIN, max_pages=MAX_PAGES, db=db)
-        
-        if company_id:
-            print(f"\n[✓] Successfully scraped and saved to database!")
-            print(f"    Company ID: {company_id}")
-        else:
-            print("\n[!] Scraping failed")
-    
-    finally:
-        # Close database connection
-        db.close()
-
-if __name__ == "__main__":
-    main()
+        return all_reviews
