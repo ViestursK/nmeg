@@ -1,0 +1,229 @@
+{
+  "company": {
+    "brand_name": "KetoGo",
+    "business_id": "63ba7b70a77326e55c71db1b",
+    "website": "https://ketogo.app",
+    "logo_url": "//s3-eu-west-1.amazonaws.com/tpd/logos/63ba7b70a77326e55c71db1b/0x0.png",
+    "star_rating_svg": "https://cdn.trustpilot.net/brand-assets/4.1.0/stars/stars-2.svg",
+    "total_reviews_all_time": 2476,
+    "trust_score": 1.8,
+    "stars": 2,
+    "is_claimed": true,
+    "categories": [
+      {
+        "id": "weight_loss_service",
+        "name": "Weight Loss Service",
+        "rank": "62",
+        "isPrimary": false,
+        "cardinality": "62"
+      },
+      {
+        "id": "fitness_and_nutrition_service",
+        "name": "Fitness and Nutrition Service",
+        "rank": "78",
+        "isPrimary": true,
+        "cardinality": "78"
+      },
+      {
+        "id": "wellness_program",
+        "name": "Wellness Program",
+        "rank": "56",
+        "isPrimary": false,
+        "cardinality": "56"
+      }
+    ],
+    "ai_summary": {
+      "summary_text": "Most reviewers were unhappy with their experience overall. Customers have expressed concerns about various aspects of their interaction with the company, especially regarding payment issues. Many consumers report unexpected charges and consider the subscription practices to be unclear and misleading.\n\nSpecifically, people mention difficulties in canceling their subscriptions, with some claiming they were charged even after canceling. The price and refund policies are also a source of dissatisfaction for many reviewers. However, there are mixed opinions about the product itself, with a low consensus among reviewers.",
+      "updated_at": "2026-02-07T19:25:08.233083Z"
+    },
+    "top_mentions_overall": [
+      "app",
+      "cancellation",
+      "subscription",
+      "contact",
+      "fraud",
+      "refund",
+      "payment",
+      "spam",
+      "service",
+      "website",
+      "customer_service",
+      "recommendation",
+      "warning",
+      "complaint",
+      "mistake",
+      "order",
+      "marketing"
+    ]
+  },
+  "report_metadata": {
+    "generated_at": "2026-02-07T19:28:09.713089",
+    "iso_week": "2026-W06",
+    "week_start": "2026-02-02",
+    "week_end": "2026-02-08"
+  },
+  "week_stats": {
+    "review_volume": {
+      "total_this_week": 60,
+      "total_last_week": 76,
+      "wow_change": -16,
+      "wow_change_pct": -21.05,
+      "by_language": {
+        "fr": 9,
+        "en": 22,
+        "pl": 4,
+        "et": 1,
+        "da": 1,
+        "de": 9,
+        "bs": 1,
+        "no": 1,
+        "it": 5,
+        "es": 6,
+        "sv": 1
+      },
+      "by_country": [
+        {
+          "country": "FR",
+          "review_count": 9
+        },
+        {
+          "country": "DE",
+          "review_count": 7
+        },
+        {
+          "country": "AU",
+          "review_count": 7
+        },
+        {
+          "country": "IT",
+          "review_count": 7
+        },
+        {
+          "country": "ES",
+          "review_count": 5
+        },
+        {
+          "country": "PL",
+          "review_count": 3
+        },
+        {
+          "country": "CH",
+          "review_count": 2
+        },
+        {
+          "country": "IL",
+          "review_count": 2
+        },
+        {
+          "country": "NL",
+          "review_count": 2
+        },
+        {
+          "country": "EE",
+          "review_count": 2
+        }
+      ],
+      "by_source": {
+        "verified_invited": 16,
+        "organic": 44
+      }
+    },
+    "rating_performance": {
+      "avg_rating_this_week": 1.83,
+      "avg_rating_last_week": 1.63,
+      "wow_change": 0.2
+    },
+    "sentiment": {
+      "positive": {
+        "count": 12,
+        "percentage": 20.0
+      },
+      "neutral": {
+        "count": 2,
+        "percentage": 3.33
+      },
+      "negative": {
+        "count": 46,
+        "percentage": 76.67
+      }
+    },
+    "rating_distribution": {
+      "5_stars": 9,
+      "4_stars": 3,
+      "3_stars": 2,
+      "2_stars": 1,
+      "1_star": 45
+    },
+    "response_performance": {
+      "reviews_with_response": 0,
+      "reviews_edited": 1,
+      "response_rate_pct": 0.0,
+      "reviews_without_response": 60,
+      "avg_response_time_hours": null,
+      "avg_response_time_days": null
+    },
+    "content_analysis": {
+      "positive_themes": [
+        {
+          "topic": "Application",
+          "count": 1
+        },
+        {
+          "topic": "Email",
+          "count": 1
+        },
+        {
+          "topic": "Question",
+          "count": 1
+        },
+        {
+          "topic": "Solution",
+          "count": 1
+        }
+      ],
+      "neutral_themes": [],
+      "negative_themes": [
+        {
+          "topic": "Application",
+          "count": 8
+        },
+        {
+          "topic": "Subscription",
+          "count": 5
+        },
+        {
+          "topic": "Service",
+          "count": 4
+        },
+        {
+          "topic": "Email",
+          "count": 3
+        },
+        {
+          "topic": "Experience",
+          "count": 3
+        },
+        {
+          "topic": "Customer service",
+          "count": 2
+        },
+        {
+          "topic": "Refund",
+          "count": 2
+        },
+        {
+          "topic": "Cancellation",
+          "count": 2
+        },
+        {
+          "topic": "Quotes",
+          "count": 1
+        },
+        {
+          "topic": "Response time",
+          "count": 1
+        }
+      ]
+    }
+  }
+}
