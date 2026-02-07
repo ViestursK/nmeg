@@ -10,10 +10,10 @@ scraper = TrustpilotScraper(db)
 company_domain = "ketogo.app"
 
 # Auto-detect mode (checks if brand exists in DB)
-scraper.scrape_and_save(company_domain, batch_size=100)
+# scraper.scrape_and_save(company_domain, batch_size=100)
 
 # Or force full history scrape (even if brand exists)
-# scraper.scrape_and_save(company_domain, use_date_filter=False, batch_size=100)
+scraper.scrape_and_save(company_domain, use_date_filter=False, batch_size=100)
 
 # Or force incremental (last 30 days only)
 # scraper.scrape_and_save(company_domain, use_date_filter=True, batch_size=100)

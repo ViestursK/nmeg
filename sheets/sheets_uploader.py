@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
 """
-Google Sheets Uploader - Clean Mini-App Architecture
-====================================================
-
-Architecture:
-1. ONE raw_data sheet (append-only, long format)
-2. ONE dashboard sheet (interactive with selectors)
-3. ONE definitions sheet (metric explanations)
-
-Design Principles:
-- Append-only (never overwrite history)
-- Brand-agnostic (works for 1 or 100 brands)
-- Dynamic KPIs (calculated in formulas, not stored)
-- Interactive filtering (dropdown selectors)
+Sheets Uploader V3 - HTML Report Structure in Google Sheets
+- raw_data: Full weekly data (including AI summary + topics)
+- dashboard: Visual report display (like old HTML) with brand/week selectors
 """
 
 import os
-from datetime import datetime
-from decimal import Decimal
 import json
 from dotenv import load_dotenv
 import gspread
@@ -27,28 +15,25 @@ from googleapiclient.discovery import build
 load_dotenv()
 
 
-class SheetsUploader:
-    """Clean, battle-tested Google Sheets uploader"""
+class SheetsUploaderV3:
+    """Upload weekly reports to Google Sheets with visual dashboard"""
     
     def __init__(self):
+        """Initialize with credentials and find/create spreadsheet"""
+        
+        # Configuration
         self.spreadsheet_name = os.getenv("MASTER_SPREADSHEET_NAME", "Trustpilot Dashboard")
         self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
         creds_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
         
         if not self.folder_id or not creds_path:
-            raise ValueError("Missing GOOGLE_DRIVE_FOLDER_ID or GOOGLE_SHEETS_CREDENTIALS in .env")
+            raise ValueError("Missing GOOGLE_DRIVE_FOLDER_ID or GOOGLE_SHEETS_CREDENTIALS")
         
         # Handle relative paths
         if not os.path.isabs(creds_path):
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            if os.path.basename(current_dir) == 'sheets':
-                project_root = os.path.dirname(current_dir)
-            else:
-                project_root = current_dir
+            project_root = os.path.dirname(current_dir) if os.path.basename(current_dir) == 'sheets' else current_dir
             creds_path = os.path.join(project_root, creds_path)
-        
-        if not os.path.exists(creds_path):
-            raise FileNotFoundError(f"Credentials file not found: {creds_path}")
         
         # Setup credentials
         scopes = [
@@ -59,14 +44,10 @@ class SheetsUploader:
         self.creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
         self.gc = gspread.authorize(self.creds)
         self.drive_service = build('drive', 'v3', credentials=self.creds)
-        self.sheets_service = build('sheets', 'v4', credentials=self.creds)
-        
-        print("✅ Google Sheets authenticated")
     
     def find_or_create_spreadsheet(self):
         """Find existing spreadsheet or create new one"""
         
-        # Search for existing
         query = (
             f"'{self.folder_id}' in parents and "
             f"mimeType='application/vnd.google-apps.spreadsheet' and "
@@ -87,13 +68,12 @@ class SheetsUploader:
             print(f"✅ Found existing sheet: {files[0]['name']}")
             return files[0]['id']
         
-        # Create new
         print(f"➕ Creating new spreadsheet: {self.spreadsheet_name}")
         spreadsheet = self.gc.create(self.spreadsheet_name, folder_id=self.folder_id)
         return spreadsheet.id
     
     def setup_raw_data_sheet(self, workbook):
-        """Setup or verify raw_data sheet structure"""
+        """Setup raw_data sheet with full data structure"""
         
         print("  📊 Setting up raw_data sheet...")
         
@@ -101,13 +81,12 @@ class SheetsUploader:
             ws = workbook.worksheet('raw_data')
             print("    ✅ Sheet exists")
         except:
-            ws = workbook.add_worksheet(title='raw_data', rows=10000, cols=50)
+            ws = workbook.add_worksheet(title='raw_data', rows=10000, cols=90)
             print("    ➕ Created new sheet")
         
-        # Check if headers exist AND are complete (not just A1)
+        # Check if headers exist
         try:
             existing_headers = ws.row_values(1)
-            # We expect 60+ columns, so check if we have at least 10
             has_headers = len(existing_headers) >= 10
         except:
             has_headers = False
@@ -143,15 +122,17 @@ class SheetsUploader:
                 # Sources
                 'verified_count', 'organic_count',
                 
-                # Languages & Countries (top 3)
+                # Languages (top 3)
                 'top_language_1', 'top_language_1_count',
                 'top_language_2', 'top_language_2_count',
                 'top_language_3', 'top_language_3_count',
+                
+                # Countries (top 3)
                 'top_country_1', 'top_country_1_count',
                 'top_country_2', 'top_country_2_count',
                 'top_country_3', 'top_country_3_count',
                 
-                # Content Analysis (top 5 each)
+                # Themes (top 3 positive/negative)
                 'positive_theme_1', 'positive_theme_1_count',
                 'positive_theme_2', 'positive_theme_2_count',
                 'positive_theme_3', 'positive_theme_3_count',
@@ -159,8 +140,12 @@ class SheetsUploader:
                 'negative_theme_2', 'negative_theme_2_count',
                 'negative_theme_3', 'negative_theme_3_count',
                 
-                # AI Summary
-                'ai_summary',
+                # AI Summary & Topics (NEW - full data)
+                'ai_summary_full',
+                'ai_summary_updated_at',
+                'ai_summary_language',
+                'ai_summary_model_version',
+                'top_mentions',  # JSON array as text
                 
                 # Metadata
                 'generated_at'
@@ -169,7 +154,7 @@ class SheetsUploader:
             ws.update('A1', [headers])
             
             # Format header row
-            ws.format('A1:BZ1', {
+            ws.format('A1:CZ1', {
                 'textFormat': {'bold': True, 'fontSize': 10},
                 'backgroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
                 'textFormat': {'foregroundColor': {'red': 1, 'green': 1, 'blue': 1}},
@@ -177,259 +162,66 @@ class SheetsUploader:
             })
             
             ws.freeze(rows=1)
-            print("    ✅ Headers configured")
         
         return ws
     
-    def setup_dashboard_sheet(self, workbook, spreadsheet_id):
-        """Setup interactive dashboard with selectors and KPIs"""
-        
-        print("  📈 Setting up dashboard sheet...")
-        
-        try:
-            ws = workbook.worksheet('dashboard')
-            print("    ✅ Sheet exists")
-        except:
-            ws = workbook.add_worksheet(title='dashboard', rows=100, cols=20)
-            print("    ➕ Created new sheet")
-        
-        # ========================================
-        # SELECTORS SECTION (Rows 1-5)
-        # ========================================
-        
-        ws.update('A1', [['TRUSTPILOT DASHBOARD']])
-        ws.merge_cells('A1:D1')
-        ws.format('A1', {
-            'textFormat': {'bold': True, 'fontSize': 18},
-            'horizontalAlignment': 'CENTER',
-            'backgroundColor': {'red': 0.1, 'green': 0.1, 'blue': 0.1},
-            'textFormat': {'foregroundColor': {'red': 1, 'green': 1, 'blue': 1}}
-        })
-        
-        # Selector labels
-        ws.update('A3', [['Select Brand:']])
-        ws.update('A4', [['Select Week:']])
-        ws.format('A3:A4', {'textFormat': {'bold': True, 'fontSize': 11}})
-        
-        # Placeholder cells (these will have data validation)
-        ws.update('B3', [['[Add data validation: raw_data unique brands]']])
-        ws.update('B4', [['[Add data validation: raw_data unique weeks]']])
-        ws.format('B3:B4', {
-            'backgroundColor': {'red': 1, 'green': 1, 'blue': 0.8},
-            'horizontalAlignment': 'LEFT'
-        })
-        
-        # Instructions
-        ws.update('E3', [['Instructions:']])
-        ws.update('E4', [['1. Use Data > Data validation on B3 to add brand dropdown']])
-        ws.update('E5', [['2. Use Data > Data validation on B4 to add week dropdown']])
-        ws.update('E6', [['3. Dashboard auto-updates when you change selections']])
-        ws.format('E3', {'textFormat': {'bold': True}})
-        ws.format('E4:E6', {'textFormat': {'fontSize': 9, 'italic': True}})
-        
-        # ========================================
-        # KPI CARDS (Rows 7-12)
-        # ========================================
-        
-        ws.update('A7', [['KEY METRICS']])
-        ws.merge_cells('A7:J7')
-        ws.format('A7', {
-            'textFormat': {'bold': True, 'fontSize': 14},
-            'backgroundColor': {'red': 0.85, 'green': 0.85, 'blue': 0.85},
-            'horizontalAlignment': 'CENTER'
-        })
-        
-        # KPI Card Headers
-        kpi_headers = [
-            ['Reviews', 'Avg Rating', 'Positive %', 'Negative %', 'Response Rate']
-        ]
-        ws.update('A8', kpi_headers)
-        ws.format('A8:E8', {
-            'textFormat': {'bold': True, 'fontSize': 11},
-            'backgroundColor': {'red': 0.75, 'green': 0.75, 'blue': 0.75},
-            'horizontalAlignment': 'CENTER'
-        })
-        
-        # KPI Values (with formulas using QUERY for reliability)
-        kpi_formulas = [[
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT O WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), "-")',
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT S WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), "-")',
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT X WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), "-")',
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AA WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), "-")',
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AG WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), "-")'
-        ]]
-        ws.update('A9', kpi_formulas)
-        ws.format('A9:E9', {
-            'textFormat': {'fontSize': 16, 'bold': True},
-            'horizontalAlignment': 'CENTER',
-            'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0.0'}
-        })
-        
-        # WoW Changes
-        wow_formulas = [[
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT Q WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1) & " WoW", "")',
-            '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT U WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1) & " WoW", "")',
-            '', '', ''
-        ]]
-        ws.update('A10', wow_formulas)
-        ws.format('A10:E10', {
-            'textFormat': {'fontSize': 10, 'italic': True},
-            'horizontalAlignment': 'CENTER'
-        })
-        
-        # ========================================
-        # FILTERED DATA TABLE (Rows 14+)
-        # ========================================
-        
-        ws.update('A12', [['DETAILED METRICS']])
-        ws.merge_cells('A12:J12')
-        ws.format('A12', {
-            'textFormat': {'bold': True, 'fontSize': 14},
-            'backgroundColor': {'red': 0.85, 'green': 0.85, 'blue': 0.85},
-            'horizontalAlignment': 'CENTER'
-        })
-        
-        # Filter formula (shows selected brand+week data)
-        filter_formula = '=QUERY(raw_data!A:BZ, "SELECT * WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0)'
-        ws.update('A14', [[filter_formula]])
-        
-        # ========================================
-        # CHARTS SECTION (Rows 25+)
-        # ========================================
-        
-        ws.update('A25', [['SENTIMENT BREAKDOWN']])
-        ws.update('F25', [['RATING DISTRIBUTION']])
-        ws.format('A25:J25', {
-            'textFormat': {'bold': True, 'fontSize': 12},
-            'backgroundColor': {'red': 0.9, 'green': 0.9, 'blue': 0.9}
-        })
-        
-        # Sentiment data for chart
-        ws.update('A26', [
-            ['Positive', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT V WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['Neutral', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT W WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['Negative', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT Z WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)']
-        ])
-        
-        # Rating distribution for chart
-        ws.update('F26', [
-            ['5 Star', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AB WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['4 Star', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AC WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['3 Star', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AD WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['2 Star', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AE WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)'],
-            ['1 Star', '=IFERROR(INDEX(QUERY(raw_data!A:BZ, "SELECT AF WHERE E = \'"&B3&"\' AND B = \'"&B4&"\'", 0), 1, 1), 0)']
-        ])
-        
-        print("    ✅ Dashboard configured")
-        return ws
     
-    def setup_definitions_sheet(self, workbook):
-        """Create definitions sheet with metric explanations"""
-        
-        print("  📖 Setting up definitions sheet...")
-        
-        try:
-            ws = workbook.worksheet('definitions')
-            print("    ✅ Sheet exists")
-            return ws
-        except:
-            ws = workbook.add_worksheet(title='definitions', rows=50, cols=5)
-            print("    ➕ Created new sheet")
-        
-        definitions = [
-            ['METRIC DEFINITIONS', '', '', ''],
-            ['', '', '', ''],
-            ['Metric', 'Category', 'Definition', 'Formula'],
-            ['Reviews This Week', 'Volume', 'Total reviews received in the selected week', 'COUNT(reviews)'],
-            ['WoW Change', 'Volume', 'Week-over-week change in review count', '(This Week - Last Week)'],
-            ['WoW Change %', 'Volume', 'Week-over-week percentage change', '(WoW Change / Last Week) * 100'],
-            ['Avg Rating', 'Rating', 'Average star rating (1-5) for the week', 'AVG(rating)'],
-            ['Rating WoW Change', 'Rating', 'Change in average rating vs last week', 'Avg Rating - Last Week Avg'],
-            ['Positive Count', 'Sentiment', 'Reviews with 4 or 5 stars', 'COUNT(rating >= 4)'],
-            ['Neutral Count', 'Sentiment', 'Reviews with exactly 3 stars', 'COUNT(rating = 3)'],
-            ['Negative Count', 'Sentiment', 'Reviews with 1 or 2 stars', 'COUNT(rating <= 2)'],
-            ['Response Rate', 'Response', 'Percentage of reviews with brand reply', '(Replied / Total) * 100'],
-            ['Avg Response Time', 'Response', 'Average time to respond (hours)', 'AVG(reply_date - review_date)'],
-            ['Verified Count', 'Source', 'Reviews from verified purchases', 'COUNT(verified = TRUE)'],
-            ['Organic Count', 'Source', 'Reviews not from verified purchases', 'COUNT(verified = FALSE)'],
-            ['', '', '', ''],
-            ['DATA FRESHNESS', '', '', ''],
-            ['Generated At', '', 'Timestamp when data was generated', ''],
-            ['Snapshot Date', '', 'Start date of the ISO week', ''],
-        ]
-        
-        ws.update('A1', definitions)
-        
-        # Format
-        ws.format('A1:D1', {
-            'textFormat': {'bold': True, 'fontSize': 14},
-            'backgroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
-            'textFormat': {'foregroundColor': {'red': 1, 'green': 1, 'blue': 1}}
-        })
-        ws.format('A3:D3', {
-            'textFormat': {'bold': True},
-            'backgroundColor': {'red': 0.8, 'green': 0.8, 'blue': 0.8}
-        })
-        ws.format('A17:D17', {
-            'textFormat': {'bold': True},
-            'backgroundColor': {'red': 0.9, 'green': 0.9, 'blue': 0.9}
-        })
-        
-        ws.freeze(rows=3)
-        
-        print("    ✅ Definitions configured")
-        return ws
     
     def append_data_row(self, ws, report_data):
-        """Append one row to raw_data sheet"""
+        """Append one weekly report to raw_data sheet"""
         
-        rm = report_data['report_metadata']
+        print("  💾 Appending data row...")
+        
         c = report_data['company']
-        rv = report_data['week_stats']['review_volume']
-        rp = report_data['week_stats']['rating_performance']
-        s = report_data['week_stats']['sentiment']
-        rd = report_data['week_stats']['rating_distribution']
-        resp = report_data['week_stats']['response_performance']
-        ca = report_data['week_stats']['content_analysis']
+        rm = report_data['report_metadata']
+        
+        # Check if data is nested under week_stats or at root level
+        if 'week_stats' in report_data:
+            ws = report_data['week_stats']
+            rv = ws['review_volume']
+            rp = ws['rating_performance']
+            s = ws['sentiment']
+            rd = ws['rating_distribution']
+            resp = ws['response_performance']
+            ca = ws['content_analysis']
+        else:
+            # Legacy structure
+            rv = report_data['review_volume']
+            rp = report_data['rating_performance']
+            s = report_data['sentiment']
+            rd = report_data['rating_distribution']
+            resp = report_data['response_performance']
+            ca = report_data['content_analysis']
         
         # Helper functions
         def safe_float(val):
-            if val is None:
-                return ''
-            if isinstance(val, Decimal):
-                return float(val)
-            return val
+            try:
+                return float(val) if val is not None else 0
+            except:
+                return 0
         
-        def get_theme(themes, index):
-            """Get theme at index or return empty"""
-            if themes and len(themes) > index:
-                return themes[index].get('topic', ''), themes[index].get('count', 0)
+        def get_top_item(arr, idx):
+            if arr and len(arr) > idx:
+                item = arr[idx]
+                return item.get('language' if 'language' in item else 'country', ''), item.get('count', 0)
             return '', 0
         
-        def get_lang(lang_dict, index):
-            """Get language at index from dict"""
-            sorted_langs = sorted(lang_dict.items(), key=lambda x: x[1], reverse=True)
-            if len(sorted_langs) > index:
-                return sorted_langs[index][0], sorted_langs[index][1]
+        def get_theme(arr, idx):
+            if arr and len(arr) > idx:
+                return arr[idx].get('topic', ''), arr[idx].get('count', 0)
             return '', 0
         
-        def get_country(countries, index):
-            """Get country at index"""
-            if countries and len(countries) > index:
-                return countries[index]['country'], countries[index]['review_count']
-            return '', 0
-        
-        # Extract top languages
-        lang_dict = rv.get('by_language', {})
-        lang1, lang1_count = get_lang(lang_dict, 0)
-        lang2, lang2_count = get_lang(lang_dict, 1)
-        lang3, lang3_count = get_lang(lang_dict, 2)
-        
-        # Extract top countries
+        # Extract top items
+        langs = rv.get('by_language', [])
         countries = rv.get('by_country', [])
-        country1, country1_count = get_country(countries, 0)
-        country2, country2_count = get_country(countries, 1)
-        country3, country3_count = get_country(countries, 2)
+        
+        lang1, lang1_count = get_top_item(langs, 0)
+        lang2, lang2_count = get_top_item(langs, 1)
+        lang3, lang3_count = get_top_item(langs, 2)
+        
+        country1, country1_count = get_top_item(countries, 0)
+        country2, country2_count = get_top_item(countries, 1)
+        country3, country3_count = get_top_item(countries, 2)
         
         # Extract themes
         pos_themes = ca.get('positive_themes', [])
@@ -442,14 +234,25 @@ class SheetsUploader:
         neg2, neg2_count = get_theme(neg_themes, 1)
         neg3, neg3_count = get_theme(neg_themes, 2)
         
+        # Extract AI summary and topics (NEW)
+        ai_summary_data = c.get('ai_summary', {}) or {}
+        ai_summary_text = ai_summary_data.get('summary_text', '')
+        ai_summary_updated = ai_summary_data.get('updated_at', '')
+        ai_summary_lang = ai_summary_data.get('language', '')
+        ai_summary_model = ai_summary_data.get('model_version', '')
+        
+        # Format topics as comma-separated list (from top_mentions_overall)
+        topics_list = c.get('top_mentions_overall', []) or c.get('topics', [])
+        topics_text = ', '.join(topics_list) if topics_list else ''
+        
         # Build row
         row = [
             # Identifiers
-            rm['week_start'],  # snapshot_date
+            rm['week_start'],
             rm['iso_week'],
             rm['week_start'],
             rm['week_end'],
-            c['brand_name'],  # brand_id (using name for now)
+            c['brand_name'],
             c['brand_name'],
             c.get('website', ''),
             c.get('business_id', ''),
@@ -516,8 +319,12 @@ class SheetsUploader:
             neg2, neg2_count,
             neg3, neg3_count,
             
-            # AI Summary
-            c.get('ai_summary', {}).get('summary_text', '')[:500] if c.get('ai_summary') else '',
+            # AI Summary & Topics (NEW - full data)
+            ai_summary_text,
+            ai_summary_updated,
+            ai_summary_lang,
+            ai_summary_model,
+            topics_text,
             
             # Metadata
             rm['generated_at']
@@ -528,17 +335,17 @@ class SheetsUploader:
     
     def upload_report(self, report_data):
         """
-        Main upload function - append one report to the spreadsheet
+        Main upload function
         
         Args:
             report_data: Dict from generate_weekly_report()
         
         Returns:
-            spreadsheet_id: ID of the uploaded spreadsheet
+            spreadsheet_id
         """
         
         print("\n" + "="*70)
-        print("UPLOADING TO GOOGLE SHEETS")
+        print("UPLOADING TO GOOGLE SHEETS V3")
         print("="*70 + "\n")
         
         brand_name = report_data['company']['brand_name']
@@ -550,12 +357,11 @@ class SheetsUploader:
         spreadsheet_id = self.find_or_create_spreadsheet()
         workbook = self.gc.open_by_key(spreadsheet_id)
         
-        # Setup structure (idempotent)
+        # Setup structure
         raw_data_ws = self.setup_raw_data_sheet(workbook)
         self.setup_dashboard_sheet(workbook, spreadsheet_id)
-        self.setup_definitions_sheet(workbook)
         
-        # Append data row
+        # Append data
         self.append_data_row(raw_data_ws, report_data)
         
         print("\n" + "="*70)
@@ -563,30 +369,16 @@ class SheetsUploader:
         print("="*70)
         print(f"\n🔗 View Dashboard:")
         print(f"   https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid=0")
-        print(f"\n💡 Next Steps:")
-        print(f"   1. Go to dashboard sheet")
-        print(f"   2. Click cell B3 → Data > Data validation")
-        print(f"      Range: raw_data!E2:E (brand names)")
-        print(f"   3. Click cell B4 → Data > Data validation")
+        print(f"\n💡 Setup Instructions:")
+        print(f"   1. Open dashboard sheet")
+        print(f"   2. Click B3 → Data > Data validation")
+        print(f"      Range: raw_data!F2:F (brand names)")
+        print(f"   3. Click B4 → Data > Data validation")
         print(f"      Range: raw_data!B2:B (ISO weeks)")
-        print(f"   4. Select brand & week to see metrics!\n")
+        print(f"   4. Select brand + week to view report!\n")
         
         return spreadsheet_id
 
 
-# CLI usage
 if __name__ == "__main__":
-    import sys
-    import json
-    
-    if len(sys.argv) < 2:
-        print("Usage: python sheets_uploader_v2.py <report.json>")
-        sys.exit(1)
-    
-    report_file = sys.argv[1]
-    
-    with open(report_file, 'r') as f:
-        report_data = json.load(f)
-    
-    uploader = SheetsUploader()
-    uploader.upload_report(report_data)
+    print("Import this module and use SheetsUploaderV3 class")

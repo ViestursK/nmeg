@@ -1,63 +1,430 @@
--- Drop tables if they exist (for clean recreation)
-DROP TABLE IF EXISTS reviews CASCADE;
-DROP TABLE IF EXISTS top_mentions CASCADE;
-DROP TABLE IF EXISTS companies CASCADE;
+--
+-- PostgreSQL database dump
+--
 
--- Companies table
-CREATE TABLE companies (
-    id SERIAL PRIMARY KEY,
-    business_id VARCHAR(255) UNIQUE NOT NULL,
-    brand_name VARCHAR(255) NOT NULL,
-    website VARCHAR(500),
-    logo_url VARCHAR(500),
-    total_reviews INTEGER DEFAULT 0,
-    trust_score DECIMAL(3,2),
-    stars DECIMAL(3,2),
-    is_claimed BOOLEAN DEFAULT FALSE,
-    categories TEXT[],
-    ai_summary_text TEXT,
-    ai_summary_updated_at TIMESTAMP,
-    ai_summary_language VARCHAR(10),
-    ai_summary_model_version VARCHAR(50),
-    last_scraped_at TIMESTAMP DEFAULT NOW(),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+-- Dumped from database version 17.2
+-- Dumped by pg_dump version 17.2
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: ai_summaries; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.ai_summaries (
+    id integer NOT NULL,
+    company_id integer NOT NULL,
+    summary_text text,
+    summary_language character varying(10),
+    model_version character varying(50),
+    topics jsonb,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reviews table
-CREATE TABLE reviews (
-    id SERIAL PRIMARY KEY,
-    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
-    review_id VARCHAR(255) UNIQUE NOT NULL,
-    consumer_name VARCHAR(255),
-    consumer_id VARCHAR(255),
-    consumer_reviews_count INTEGER,
-    consumer_country_code VARCHAR(10),
-    title TEXT,
-    text TEXT,
-    rating INTEGER,
-    published_date TIMESTAMP,
-    updated_date TIMESTAMP,
-    experience_date DATE,
-    verified BOOLEAN DEFAULT FALSE,
-    reply_message TEXT,
-    reply_published_date TIMESTAMP,
-    language VARCHAR(10),
-    created_at TIMESTAMP DEFAULT NOW()
+
+ALTER TABLE public.ai_summaries OWNER TO postgres;
+
+--
+-- Name: ai_summaries_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.ai_summaries_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.ai_summaries_id_seq OWNER TO postgres;
+
+--
+-- Name: ai_summaries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.ai_summaries_id_seq OWNED BY public.ai_summaries.id;
+
+
+--
+-- Name: companies; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.companies (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    business_id character varying(255),
+    display_name character varying(255),
+    website_url text,
+    logo_url text,
+    star_rating_svg character varying(500),
+    total_reviews integer,
+    trust_score numeric(3,2),
+    stars integer,
+    is_claimed boolean,
+    categories jsonb,
+    verification jsonb,
+    contact_info jsonb,
+    activity jsonb,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
--- Top mentions table
-CREATE TABLE top_mentions (
-    id SERIAL PRIMARY KEY,
-    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
-    mention VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(company_id, mention)
+
+ALTER TABLE public.companies OWNER TO postgres;
+
+--
+-- Name: companies_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.companies_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.companies_id_seq OWNER TO postgres;
+
+--
+-- Name: companies_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.companies_id_seq OWNED BY public.companies.id;
+
+
+--
+-- Name: reviews; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.reviews (
+    id integer NOT NULL,
+    company_id integer NOT NULL,
+    review_id character varying(255) NOT NULL,
+    rating integer,
+    title text,
+    text text,
+    text_en text,
+    author_name character varying(255),
+    author_id character varying(255),
+    author_country_code character varying(10),
+    author_review_count integer,
+    review_date timestamp without time zone,
+    experience_date date,
+    verified boolean DEFAULT false,
+    language character varying(10),
+    reply_message text,
+    reply_date timestamp without time zone,
+    likes integer DEFAULT 0,
+    source character varying(50),
+    labels jsonb,
+    scraped_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    is_edited boolean DEFAULT false
 );
 
--- Create indexes for better query performance
-CREATE INDEX idx_reviews_company_id ON reviews(company_id);
-CREATE INDEX idx_reviews_published_date ON reviews(published_date);
-CREATE INDEX idx_reviews_rating ON reviews(rating);
-CREATE INDEX idx_companies_business_id ON companies(business_id);
-CREATE INDEX idx_top_mentions_company_id ON top_mentions(company_id);
+
+ALTER TABLE public.reviews OWNER TO postgres;
+
+--
+-- Name: reviews_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.reviews_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.reviews_id_seq OWNER TO postgres;
+
+--
+-- Name: reviews_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.reviews_id_seq OWNED BY public.reviews.id;
+
+
+--
+-- Name: topics; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.topics (
+    id integer NOT NULL,
+    topic_key character varying(100) NOT NULL,
+    topic_name character varying(255) NOT NULL,
+    search_terms text[] NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.topics OWNER TO postgres;
+
+--
+-- Name: topics_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.topics_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topics_id_seq OWNER TO postgres;
+
+--
+-- Name: topics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.topics_id_seq OWNED BY public.topics.id;
+
+
+--
+-- Name: weekly_snapshots; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.weekly_snapshots (
+    id integer NOT NULL,
+    company_id integer NOT NULL,
+    week character varying(10) NOT NULL,
+    snapshot_date date NOT NULL,
+    total_reviews integer,
+    avg_rating numeric(3,2),
+    positive_count integer,
+    neutral_count integer,
+    negative_count integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.weekly_snapshots OWNER TO postgres;
+
+--
+-- Name: weekly_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.weekly_snapshots_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.weekly_snapshots_id_seq OWNER TO postgres;
+
+--
+-- Name: weekly_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.weekly_snapshots_id_seq OWNED BY public.weekly_snapshots.id;
+
+
+--
+-- Name: ai_summaries id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.ai_summaries ALTER COLUMN id SET DEFAULT nextval('public.ai_summaries_id_seq'::regclass);
+
+
+--
+-- Name: companies id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.companies ALTER COLUMN id SET DEFAULT nextval('public.companies_id_seq'::regclass);
+
+
+--
+-- Name: reviews id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reviews ALTER COLUMN id SET DEFAULT nextval('public.reviews_id_seq'::regclass);
+
+
+--
+-- Name: topics id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topics ALTER COLUMN id SET DEFAULT nextval('public.topics_id_seq'::regclass);
+
+
+--
+-- Name: weekly_snapshots id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.weekly_snapshots ALTER COLUMN id SET DEFAULT nextval('public.weekly_snapshots_id_seq'::regclass);
+
+
+--
+-- Name: ai_summaries ai_summaries_company_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.ai_summaries
+    ADD CONSTRAINT ai_summaries_company_id_key UNIQUE (company_id);
+
+
+--
+-- Name: ai_summaries ai_summaries_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.ai_summaries
+    ADD CONSTRAINT ai_summaries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: companies companies_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.companies
+    ADD CONSTRAINT companies_name_key UNIQUE (name);
+
+
+--
+-- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.companies
+    ADD CONSTRAINT companies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reviews reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reviews reviews_review_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_review_id_key UNIQUE (review_id);
+
+
+--
+-- Name: topics topics_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: topics topics_topic_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_topic_key_key UNIQUE (topic_key);
+
+
+--
+-- Name: weekly_snapshots weekly_snapshots_company_id_week_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.weekly_snapshots
+    ADD CONSTRAINT weekly_snapshots_company_id_week_key UNIQUE (company_id, week);
+
+
+--
+-- Name: weekly_snapshots weekly_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.weekly_snapshots
+    ADD CONSTRAINT weekly_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_ai_summaries_company; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_ai_summaries_company ON public.ai_summaries USING btree (company_id);
+
+
+--
+-- Name: idx_reviews_company; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reviews_company ON public.reviews USING btree (company_id);
+
+
+--
+-- Name: idx_reviews_date; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reviews_date ON public.reviews USING btree (review_date);
+
+
+--
+-- Name: idx_reviews_scraped; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_reviews_scraped ON public.reviews USING btree (scraped_at);
+
+
+--
+-- Name: idx_snapshots_company; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_snapshots_company ON public.weekly_snapshots USING btree (company_id);
+
+
+--
+-- Name: idx_topics_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_topics_key ON public.topics USING btree (topic_key);
+
+
+--
+-- Name: ai_summaries ai_summaries_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.ai_summaries
+    ADD CONSTRAINT ai_summaries_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reviews reviews_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT reviews_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: weekly_snapshots weekly_snapshots_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.weekly_snapshots
+    ADD CONSTRAINT weekly_snapshots_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
