@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Sheets Uploader V3 - HTML Report Structure in Google Sheets
-- raw_data: Full weekly data (including AI summary + topics)
-- dashboard: Visual report display (like old HTML) with brand/week selectors
+Sheets Uploader - Simplified Structure
+Single week data only, historic KPIs calculated in sheets
 """
 
 import os
@@ -15,27 +14,22 @@ from googleapiclient.discovery import build
 load_dotenv()
 
 
-class SheetsUploaderV3:
-    """Upload weekly reports to Google Sheets with visual dashboard"""
+class DashboardSheetsUploader:
+    """Upload weekly reports to Google Sheets with simple structure"""
     
     def __init__(self):
-        """Initialize with credentials and find/create spreadsheet"""
-        
-        # Configuration
-        self.spreadsheet_name = os.getenv("MASTER_SPREADSHEET_NAME", "Trustpilot Dashboard")
+        self.spreadsheet_name = os.getenv("MASTER_SPREADSHEET_NAME", "Trustpilot Report")
         self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
         creds_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
         
         if not self.folder_id or not creds_path:
             raise ValueError("Missing GOOGLE_DRIVE_FOLDER_ID or GOOGLE_SHEETS_CREDENTIALS")
         
-        # Handle relative paths
         if not os.path.isabs(creds_path):
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(current_dir) if os.path.basename(current_dir) == 'sheets' else current_dir
             creds_path = os.path.join(project_root, creds_path)
         
-        # Setup credentials
         scopes = [
             'https://www.googleapis.com/auth/drive',
             'https://www.googleapis.com/auth/spreadsheets'
@@ -46,8 +40,7 @@ class SheetsUploaderV3:
         self.drive_service = build('drive', 'v3', credentials=self.creds)
     
     def find_or_create_spreadsheet(self):
-        """Find existing spreadsheet or create new one"""
-        
+        """Find existing spreadsheet (does not create new ones)"""
         query = (
             f"'{self.folder_id}' in parents and "
             f"mimeType='application/vnd.google-apps.spreadsheet' and "
@@ -65,29 +58,32 @@ class SheetsUploaderV3:
         files = results.get('files', [])
         
         if files:
-            print(f"✅ Found existing sheet: {files[0]['name']}")
+            print(f"✅ Found: {files[0]['name']}")
             return files[0]['id']
         
-        print(f"➕ Creating new spreadsheet: {self.spreadsheet_name}")
-        spreadsheet = self.gc.create(self.spreadsheet_name, folder_id=self.folder_id)
-        return spreadsheet.id
+        raise FileNotFoundError(
+            f"❌ Spreadsheet '{self.spreadsheet_name}' not found in folder.\n"
+            f"   Create it manually first:\n"
+            f"   1. Open https://drive.google.com/drive/folders/{self.folder_id}\n"
+            f"   2. Create new Google Sheet\n"
+            f"   3. Name it: {self.spreadsheet_name}\n"
+            f"   4. Run script again"
+        )
     
     def setup_raw_data_sheet(self, workbook):
-        """Setup raw_data sheet with full data structure"""
-        
-        print("  📊 Setting up raw_data sheet...")
+        """Setup raw_data with simplified structure"""
+        print("  📊 Setting up raw_data...")
         
         try:
             ws = workbook.worksheet('raw_data')
-            print("    ✅ Sheet exists")
         except:
-            ws = workbook.add_worksheet(title='raw_data', rows=10000, cols=90)
-            print("    ➕ Created new sheet")
+            ws = workbook.add_worksheet(title='raw_data', rows=10000, cols=45)
+            print("    ➕ Created sheet")
         
-        # Check if headers exist
+        # Check headers
         try:
-            existing_headers = ws.row_values(1)
-            has_headers = len(existing_headers) >= 10
+            existing = ws.row_values(1)
+            has_headers = len(existing) >= 10
         except:
             has_headers = False
         
@@ -95,211 +91,148 @@ class SheetsUploaderV3:
             print("    📝 Writing headers...")
             headers = [
                 # Identifiers
-                'snapshot_date', 'iso_week', 'week_start', 'week_end',
-                'brand_id', 'brand_name', 'website', 'business_id',
+                'iso_week', 'week_start', 'week_end', 'brand_name',
+                'business_id', 'website_url',
                 
-                # Company Info
-                'trust_score', 'total_reviews_alltime', 'is_claimed', 'categories',
-                'logo_url', 'star_rating_svg',
+                # Company info
+                'trust_score', 'total_reviews_alltime', 'stars', 'is_claimed',
+                'categories', 'logo_url', 'star_rating_svg',
                 
-                # Review Volume
-                'reviews_this_week', 'reviews_last_week', 'wow_change', 'wow_change_pct',
-                
-                # Rating Performance
-                'avg_rating', 'avg_rating_last_week', 'rating_wow_change',
-                
-                # Sentiment
+                # Week stats
+                'total_reviews', 'avg_rating',
                 'positive_count', 'positive_pct',
                 'neutral_count', 'neutral_pct',
                 'negative_count', 'negative_pct',
                 
-                # Rating Distribution
-                'rating_5_star', 'rating_4_star', 'rating_3_star', 'rating_2_star', 'rating_1_star',
+                # Rating distribution
+                'rating_5', 'rating_4', 'rating_3', 'rating_2', 'rating_1',
                 
-                # Response Performance
-                'reviews_with_reply', 'response_rate_pct', 'avg_response_hours', 'avg_response_days',
+                # Response
+                'reviews_with_reply', 'response_rate_pct', 'avg_response_hours',
                 
                 # Sources
                 'verified_count', 'organic_count',
                 
-                # Languages (top 3)
-                'top_language_1', 'top_language_1_count',
-                'top_language_2', 'top_language_2_count',
-                'top_language_3', 'top_language_3_count',
+                # Top languages (3)
+                'lang_1', 'lang_1_count',
+                'lang_2', 'lang_2_count',
+                'lang_3', 'lang_3_count',
                 
-                # Countries (top 3)
-                'top_country_1', 'top_country_1_count',
-                'top_country_2', 'top_country_2_count',
-                'top_country_3', 'top_country_3_count',
+                # Top countries (3)
+                'country_1', 'country_1_count',
+                'country_2', 'country_2_count',
+                'country_3', 'country_3_count',
                 
-                # Themes (top 3 positive/negative)
-                'positive_theme_1', 'positive_theme_1_count',
-                'positive_theme_2', 'positive_theme_2_count',
-                'positive_theme_3', 'positive_theme_3_count',
-                'negative_theme_1', 'negative_theme_1_count',
-                'negative_theme_2', 'negative_theme_2_count',
-                'negative_theme_3', 'negative_theme_3_count',
+                # Themes (all as comma-separated)
+                'positive_themes',
+                'negative_themes',
                 
-                # AI Summary & Topics (NEW - full data)
-                'ai_summary_full',
-                'ai_summary_updated_at',
-                'ai_summary_language',
-                'ai_summary_model_version',
-                'top_mentions',  # JSON array as text
+                # AI
+                'ai_summary', 'ai_topics',
                 
-                # Metadata
+                # Meta
                 'generated_at'
             ]
             
             ws.update('A1', [headers])
-            
-            # Format header row
-            ws.format('A1:CZ1', {
+            ws.format('A1:BZ1', {
                 'textFormat': {'bold': True, 'fontSize': 10},
                 'backgroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
                 'textFormat': {'foregroundColor': {'red': 1, 'green': 1, 'blue': 1}},
                 'horizontalAlignment': 'CENTER'
             })
-            
             ws.freeze(rows=1)
         
         return ws
     
-    
-    
     def append_data_row(self, ws, report_data):
-        """Append one weekly report to raw_data sheet"""
+        """Append weekly report to raw_data"""
+        print("  💾 Appending data...")
         
-        print("  💾 Appending data row...")
-        
-        c = report_data['company']
-        rm = report_data['report_metadata']
-        
-        # Check if data is nested under week_stats or at root level
-        if 'week_stats' in report_data:
-            ws = report_data['week_stats']
-            rv = ws['review_volume']
-            rp = ws['rating_performance']
-            s = ws['sentiment']
-            rd = ws['rating_distribution']
-            resp = ws['response_performance']
-            ca = ws['content_analysis']
-        else:
-            # Legacy structure
-            rv = report_data['review_volume']
-            rp = report_data['rating_performance']
-            s = report_data['sentiment']
-            rd = report_data['rating_distribution']
-            resp = report_data['response_performance']
-            ca = report_data['content_analysis']
-        
-        # Helper functions
         def safe_float(val):
             try:
                 return float(val) if val is not None else 0
             except:
                 return 0
         
-        def get_top_item(arr, idx):
+        def get_top(arr, idx, key):
             if arr and len(arr) > idx:
-                item = arr[idx]
-                return item.get('language' if 'language' in item else 'country', ''), item.get('count', 0)
+                return arr[idx].get(key, ''), arr[idx].get('count', 0)
             return '', 0
         
-        def get_theme(arr, idx):
-            if arr and len(arr) > idx:
-                return arr[idx].get('topic', ''), arr[idx].get('count', 0)
-            return '', 0
+        # Parse JSON fields
+        langs = json.loads(report_data.get('language_breakdown_json', '{}'))
+        langs_sorted = sorted(langs.items(), key=lambda x: x[1], reverse=True)
         
-        # Extract top items
-        langs = rv.get('by_language', [])
-        countries = rv.get('by_country', [])
+        countries = json.loads(report_data.get('country_breakdown_json', '[]'))
         
-        lang1, lang1_count = get_top_item(langs, 0)
-        lang2, lang2_count = get_top_item(langs, 1)
-        lang3, lang3_count = get_top_item(langs, 2)
+        pos_themes = json.loads(report_data.get('positive_themes_json', '[]'))
+        neg_themes = json.loads(report_data.get('negative_themes_json', '[]'))
         
-        country1, country1_count = get_top_item(countries, 0)
-        country2, country2_count = get_top_item(countries, 1)
-        country3, country3_count = get_top_item(countries, 2)
+        # Top items
+        lang1 = langs_sorted[0][0] if len(langs_sorted) > 0 else ''
+        lang1_count = langs_sorted[0][1] if len(langs_sorted) > 0 else 0
+        lang2 = langs_sorted[1][0] if len(langs_sorted) > 1 else ''
+        lang2_count = langs_sorted[1][1] if len(langs_sorted) > 1 else 0
+        lang3 = langs_sorted[2][0] if len(langs_sorted) > 2 else ''
+        lang3_count = langs_sorted[2][1] if len(langs_sorted) > 2 else 0
         
-        # Extract themes
-        pos_themes = ca.get('positive_themes', [])
-        neg_themes = ca.get('negative_themes', [])
+        country1, country1_count = get_top(countries, 0, 'country')
+        country2, country2_count = get_top(countries, 1, 'country')
+        country3, country3_count = get_top(countries, 2, 'country')
         
-        pos1, pos1_count = get_theme(pos_themes, 0)
-        pos2, pos2_count = get_theme(pos_themes, 1)
-        pos3, pos3_count = get_theme(pos_themes, 2)
-        neg1, neg1_count = get_theme(neg_themes, 0)
-        neg2, neg2_count = get_theme(neg_themes, 1)
-        neg3, neg3_count = get_theme(neg_themes, 2)
+        # Format all themes as comma-separated strings
+        def format_themes(themes):
+            return ', '.join([f"{t.get('topic', '')} ({t.get('count', 0)})" for t in themes])
         
-        # Extract AI summary and topics (NEW)
-        ai_summary_data = c.get('ai_summary', {}) or {}
-        ai_summary_text = ai_summary_data.get('summary_text', '')
-        ai_summary_updated = ai_summary_data.get('updated_at', '')
-        ai_summary_lang = ai_summary_data.get('language', '')
-        ai_summary_model = ai_summary_data.get('model_version', '')
+        positive_themes_str = format_themes(pos_themes)
+        negative_themes_str = format_themes(neg_themes)
         
-        # Format topics as comma-separated list (from top_mentions_overall)
-        topics_list = c.get('top_mentions_overall', []) or c.get('topics', [])
-        topics_text = ', '.join(topics_list) if topics_list else ''
+        total = report_data['total_reviews']
         
-        # Build row
         row = [
             # Identifiers
-            rm['week_start'],
-            rm['iso_week'],
-            rm['week_start'],
-            rm['week_end'],
-            c['brand_name'],
-            c['brand_name'],
-            c.get('website', ''),
-            c.get('business_id', ''),
+            report_data['iso_week'],
+            report_data['week_start'],
+            report_data['week_end'],
+            report_data['brand_name'],
+            report_data.get('business_id', ''),
+            report_data.get('website_url', ''),
             
-            # Company Info
-            safe_float(c.get('trust_score')),
-            c.get('total_reviews_alltime', 0),
-            c.get('is_claimed', False),
-            ', '.join(c.get('categories', [])[:3]),
-            c.get('logo_url', ''),
-            c.get('star_rating_svg', ''),
+            # Company
+            safe_float(report_data.get('trust_score')),
+            report_data.get('total_reviews_all_time_tp', 0),
+            report_data.get('stars', 0),
+            report_data.get('is_claimed', False),
+            ', '.join([str(c) for c in report_data.get('categories', [])[:3]]),
+            report_data.get('logo_url', ''),
+            report_data.get('star_rating_svg', ''),
             
-            # Review Volume
-            rv['total_this_week'],
-            rv.get('total_last_week', 0),
-            rv.get('wow_change', 0),
-            safe_float(rv.get('wow_change_pct')),
+            # Week stats
+            total,
+            safe_float(report_data['avg_rating']),
+            report_data['positive_reviews'],
+            round((report_data['positive_reviews'] / total * 100), 2) if total else 0,
+            report_data['neutral_reviews'],
+            round((report_data['neutral_reviews'] / total * 100), 2) if total else 0,
+            report_data['negative_reviews'],
+            round((report_data['negative_reviews'] / total * 100), 2) if total else 0,
             
-            # Rating Performance
-            safe_float(rp['avg_rating_this_week']),
-            safe_float(rp.get('avg_rating_last_week')),
-            safe_float(rp.get('wow_change')),
+            # Rating dist
+            report_data['rating_5'],
+            report_data['rating_4'],
+            report_data['rating_3'],
+            report_data['rating_2'],
+            report_data['rating_1'],
             
-            # Sentiment
-            s['positive']['count'],
-            safe_float(s['positive']['percentage']),
-            s['neutral']['count'],
-            safe_float(s['neutral']['percentage']),
-            s['negative']['count'],
-            safe_float(s['negative']['percentage']),
-            
-            # Rating Distribution
-            rd['5_stars'],
-            rd['4_stars'],
-            rd['3_stars'],
-            rd['2_stars'],
-            rd['1_star'],
-            
-            # Response Performance
-            resp.get('reviews_with_response', 0),
-            safe_float(resp.get('response_rate_pct', 0)),
-            safe_float(resp.get('avg_response_time_hours')),
-            safe_float(resp.get('avg_response_time_days')),
+            # Response
+            report_data['reviews_with_response'],
+            safe_float(report_data['response_rate_pct']),
+            safe_float(report_data.get('avg_response_time_hours')),
             
             # Sources
-            rv.get('by_source', {}).get('verified_invited', 0),
-            rv.get('by_source', {}).get('organic', 0),
+            report_data['verified_reviews'],
+            report_data['organic_reviews'],
             
             # Languages
             lang1, lang1_count,
@@ -311,74 +244,38 @@ class SheetsUploaderV3:
             country2, country2_count,
             country3, country3_count,
             
-            # Themes
-            pos1, pos1_count,
-            pos2, pos2_count,
-            pos3, pos3_count,
-            neg1, neg1_count,
-            neg2, neg2_count,
-            neg3, neg3_count,
+            # Themes (all as comma-separated)
+            positive_themes_str,
+            negative_themes_str,
             
-            # AI Summary & Topics (NEW - full data)
-            ai_summary_text,
-            ai_summary_updated,
-            ai_summary_lang,
-            ai_summary_model,
-            topics_text,
+            # AI
+            report_data.get('ai_summary', ''),
+            ', '.join([t if isinstance(t, str) else str(t) for t in report_data.get('ai_topics', [])]),
             
-            # Metadata
-            rm['generated_at']
+            # Meta
+            report_data['generated_at']
         ]
         
         ws.append_row(row)
-        print(f"    ✅ Appended: {c['brand_name']} | {rm['iso_week']}")
+        print(f"    ✅ {report_data['brand_name']} | {report_data['iso_week']}")
     
-    def upload_report(self, report_data):
-        """
-        Main upload function
+    def upload_report(self, brand_name, report_data):
+        """Main upload function"""
+        print(f"\n{'='*70}")
+        print(f"UPLOADING: {brand_name} | {report_data['iso_week']}")
+        print(f"{'='*70}\n")
         
-        Args:
-            report_data: Dict from generate_weekly_report()
-        
-        Returns:
-            spreadsheet_id
-        """
-        
-        print("\n" + "="*70)
-        print("UPLOADING TO GOOGLE SHEETS V3")
-        print("="*70 + "\n")
-        
-        brand_name = report_data['company']['brand_name']
-        iso_week = report_data['report_metadata']['iso_week']
-        
-        print(f"📊 {brand_name} | {iso_week}")
-        
-        # Get or create spreadsheet
         spreadsheet_id = self.find_or_create_spreadsheet()
         workbook = self.gc.open_by_key(spreadsheet_id)
         
-        # Setup structure
         raw_data_ws = self.setup_raw_data_sheet(workbook)
-        self.setup_dashboard_sheet(workbook, spreadsheet_id)
-        
-        # Append data
         self.append_data_row(raw_data_ws, report_data)
         
-        print("\n" + "="*70)
-        print("✅ UPLOAD COMPLETE")
-        print("="*70)
-        print(f"\n🔗 View Dashboard:")
-        print(f"   https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid=0")
-        print(f"\n💡 Setup Instructions:")
-        print(f"   1. Open dashboard sheet")
-        print(f"   2. Click B3 → Data > Data validation")
-        print(f"      Range: raw_data!F2:F (brand names)")
-        print(f"   3. Click B4 → Data > Data validation")
-        print(f"      Range: raw_data!B2:B (ISO weeks)")
-        print(f"   4. Select brand + week to view report!\n")
+        print(f"\n✅ UPLOAD COMPLETE")
+        print(f"🔗 https://docs.google.com/spreadsheets/d/{spreadsheet_id}\n")
         
         return spreadsheet_id
 
 
 if __name__ == "__main__":
-    print("Import this module and use SheetsUploaderV3 class")
+    print("Import and use DashboardSheetsUploader class")

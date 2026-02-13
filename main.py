@@ -7,7 +7,7 @@ db = Database()
 scraper = TrustpilotScraper(db)
 
 # Scrape and save in batches (saves every 100 reviews)
-company_domain = "ketogo.app"
+company_domain = "certifiedfasting.com"
 
 # Auto-detect mode (checks if brand exists in DB)
 # scraper.scrape_and_save(company_domain, batch_size=100)

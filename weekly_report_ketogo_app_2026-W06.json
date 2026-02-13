@@ -5,7 +5,7 @@
   "iso_week": "2026-W06",
   "week_start": "2026-02-02T00:00:00",
   "week_end": "2026-02-08T23:59:59",
-  "total_reviews_week": 64,
+  "total_reviews": 64,
   "avg_rating": 1.86,
   "positive_reviews": 13,
   "neutral_reviews": 2,
@@ -25,6 +25,10 @@
   "trust_score": 1.8,
   "stars": 2,
   "is_claimed": true,
+  "logo_url": "//s3-eu-west-1.amazonaws.com/tpd/logos/63ba7b70a77326e55c71db1b/0x0.png",
+  "star_rating_svg": "https://cdn.trustpilot.net/brand-assets/4.1.0/stars/stars-2.svg",
+  "website_url": "https://ketogo.app",
+  "business_id": "63ba7b70a77326e55c71db1b",
   "language_breakdown_json": "{\"it\": 5, \"es\": 6, \"pl\": 5, \"en\": 23, \"fr\": 11, \"de\": 9, \"no\": 1, \"bs\": 1, \"sv\": 1, \"da\": 1, \"et\": 1}",
   "country_breakdown_json": "[{\"country\": \"FR\", \"review_count\": 11}, {\"country\": \"IT\", \"review_count\": 7}, {\"country\": \"DE\", \"review_count\": 7}, {\"country\": \"AU\", \"review_count\": 7}, {\"country\": \"ES\", \"review_count\": 5}, {\"country\": \"PL\", \"review_count\": 4}, {\"country\": \"NO\", \"review_count\": 3}, {\"country\": \"NL\", \"review_count\": 2}, {\"country\": \"IL\", \"review_count\": 2}, {\"country\": \"CH\", \"review_count\": 2}]",
   "positive_themes_json": "[{\"topic\": \"Application\", \"count\": 1}, {\"topic\": \"Email\", \"count\": 1}, {\"topic\": \"Question\", \"count\": 1}, {\"topic\": \"Service\", \"count\": 1}, {\"topic\": \"Solution\", \"count\": 1}]",
@@ -51,27 +55,9 @@
     "marketing"
   ],
   "categories": [
-    {
-      "id": "weight_loss_service",
-      "name": "Weight Loss Service",
-      "rank": "62",
-      "isPrimary": false,
-      "cardinality": "62"
-    },
-    {
-      "id": "fitness_and_nutrition_service",
-      "name": "Fitness and Nutrition Service",
-      "rank": "78",
-      "isPrimary": true,
-      "cardinality": "78"
-    },
-    {
-      "id": "wellness_program",
-      "name": "Wellness Program",
-      "rank": "56",
-      "isPrimary": false,
-      "cardinality": "56"
-    }
+    "Weight Loss Service",
+    "Fitness and Nutrition Service",
+    "Wellness Program"
   ],
-  "generated_at": "2026-02-07T22:03:38.974251+00:00"
+  "generated_at": "2026-02-07T22:51:44.863014+00:00"
 }
