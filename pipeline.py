@@ -150,10 +150,10 @@ class TrustpilotPipeline:
         
         if exists:
             print(f"📊 Brand exists ({metadata['review_count']} reviews) - incremental scrape")
-            self.scraper.scrape_and_save(domain, use_date_filter=True, batch_size=20)
+            self.scraper.scrape_and_save(domain, use_date_filter=True, batch_size=50)
         else:
             print(f"📥 New brand - full historical scrape")
-            self.scraper.scrape_and_save(domain, use_date_filter=False, batch_size=20)
+            self.scraper.scrape_and_save(domain, use_date_filter=False, batch_size=100)
         
         print(f"✅ Scraping complete for {name}\n")
     
@@ -186,7 +186,7 @@ class TrustpilotPipeline:
         
         return True
     
-    def process_brand_reports(self, brand, weeks_back=4, batch_size=20):
+    def process_brand_reports(self, brand, weeks_back=4):
         """Generate and upload reports for recent weeks"""
         
         domain = brand['domain']
@@ -214,14 +214,11 @@ class TrustpilotPipeline:
         total_uploaded = 0
         failed = 0
         
-        for i in range(0, len(weeks), batch_size):
-            batch = weeks[i:i+batch_size]
-            
-            for iso_week in batch:
-                if self.generate_and_upload_report(brand, iso_week):
-                    total_uploaded += 1
-                else:
-                    failed += 1
+        for iso_week in weeks:  
+            if self.generate_and_upload_report(brand, iso_week):
+                total_uploaded += 1
+            else:
+                failed += 1
         
         print(f"📊 Summary for {name}:")
         print(f"  ✅ Uploaded: {total_uploaded}")
@@ -262,10 +259,10 @@ def main():
     
     if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h']:
         print("Usage:")
-        print("  python pipeline_dashboard.py                    # Run full pipeline")
-        print("  python pipeline_dashboard.py --scrape-only      # Only scrape reviews")
-        print("  python pipeline_dashboard.py --report-only      # Only generate reports")
-        print("  python pipeline_dashboard.py --weeks 8          # Report last 8 weeks")
+        print("  python pipeline.py                    # Run full pipeline")
+        print("  python pipeline.py --scrape-only      # Only scrape reviews")
+        print("  python pipeline.py --report-only      # Only generate reports")
+        print("  python pipeline.py --weeks 8          # Report last 8 weeks")
         sys.exit(0)
     
     scrape = True

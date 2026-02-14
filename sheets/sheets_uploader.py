@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Sheets Uploader - Simplified Structure
-Single week data only, historic KPIs calculated in sheets
+Sheets Uploader - Smart Update Logic
+Handles daily updates for current week without duplicates
 """
 
 import os
@@ -15,7 +15,7 @@ load_dotenv()
 
 
 class DashboardSheetsUploader:
-    """Upload weekly reports to Google Sheets with simple structure"""
+    """Upload weekly reports to Google Sheets with smart deduplication"""
     
     def __init__(self):
         self.spreadsheet_name = os.getenv("MASTER_SPREADSHEET_NAME", "Trustpilot Report")
@@ -38,6 +38,9 @@ class DashboardSheetsUploader:
         self.creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
         self.gc = gspread.authorize(self.creds)
         self.drive_service = build('drive', 'v3', credentials=self.creds)
+        
+        # Cache existing data
+        self._existing_data_cache = None
     
     def find_or_create_spreadsheet(self):
         """Find existing spreadsheet (does not create new ones)"""
@@ -76,9 +79,20 @@ class DashboardSheetsUploader:
         
         try:
             ws = workbook.worksheet('raw_data')
-        except:
+            print("    ✅ Sheet exists")
+        except gspread.exceptions.WorksheetNotFound:
             ws = workbook.add_worksheet(title='raw_data', rows=10000, cols=45)
             print("    ➕ Created sheet")
+        except Exception as e:
+            print(f"    ⚠️  Error accessing sheet: {e}")
+            # Try to get any sheet with 'raw' in the name
+            for sheet in workbook.worksheets():
+                if 'raw' in sheet.title.lower():
+                    ws = sheet
+                    print(f"    ✅ Using sheet: {sheet.title}")
+                    break
+            else:
+                raise
         
         # Check headers
         try:
@@ -134,7 +148,7 @@ class DashboardSheetsUploader:
                 'generated_at'
             ]
             
-            ws.update('A1', [headers])
+            ws.update(range_name='A1', values=[headers])
             ws.format('A1:BZ1', {
                 'textFormat': {'bold': True, 'fontSize': 10},
                 'backgroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
@@ -145,10 +159,49 @@ class DashboardSheetsUploader:
         
         return ws
     
-    def append_data_row(self, ws, report_data):
-        """Append weekly report to raw_data"""
-        print("  💾 Appending data...")
+    def get_existing_data(self, ws):
+        """Get existing brand+week combinations with row numbers"""
+        if self._existing_data_cache is not None:
+            print(f"  ✓ Using cached data ({len(self._existing_data_cache)} records)")
+            return self._existing_data_cache
         
+        print("  🔍 Reading data from sheets...")
+        
+        try:
+            all_values = ws.get_all_values()
+        except:
+            self._existing_data_cache = {}
+            return self._existing_data_cache
+        
+        if len(all_values) <= 1:
+            # No data or only headers
+            self._existing_data_cache = {}
+            return self._existing_data_cache
+        
+        # Build index: {brand_name|iso_week: {row_num, total_reviews}}
+        existing = {}
+        
+        for row_num, row in enumerate(all_values[1:], start=2):  # Skip header, start at row 2
+            if len(row) < 14:  # Not enough columns
+                continue
+            
+            iso_week = row[0]      # Column A
+            brand_name = row[3]    # Column D
+            total_reviews = row[13] # Column N (total_reviews)
+            
+            if iso_week and brand_name:
+                key = f"{brand_name}|{iso_week}"
+                existing[key] = {
+                    'row_num': row_num,
+                    'total_reviews': int(total_reviews) if total_reviews and total_reviews.isdigit() else 0
+                }
+        
+        print(f"    Found {len(existing)} existing week records")
+        self._existing_data_cache = existing
+        return existing
+    
+    def build_data_row(self, report_data):
+        """Build row data from report (extracted for reuse)"""
         def safe_float(val):
             try:
                 return float(val) if val is not None else 0
@@ -190,7 +243,7 @@ class DashboardSheetsUploader:
         
         total = report_data['total_reviews']
         
-        row = [
+        return [
             # Identifiers
             report_data['iso_week'],
             report_data['week_start'],
@@ -255,26 +308,70 @@ class DashboardSheetsUploader:
             # Meta
             report_data['generated_at']
         ]
-        
-        ws.append_row(row)
-        print(f"    ✅ {report_data['brand_name']} | {report_data['iso_week']}")
     
-    def upload_report(self, brand_name, report_data):
-        """Main upload function"""
+    def upload_report(self, brand_name, report_data, workbook=None, raw_data_ws=None, existing=None):
+        """Main upload function with smart update logic"""
         print(f"\n{'='*70}")
         print(f"UPLOADING: {brand_name} | {report_data['iso_week']}")
         print(f"{'='*70}\n")
         
-        spreadsheet_id = self.find_or_create_spreadsheet()
-        workbook = self.gc.open_by_key(spreadsheet_id)
+        # Only fetch these once per batch
+        if workbook is None:
+            spreadsheet_id = self.find_or_create_spreadsheet()
+            workbook = self.gc.open_by_key(spreadsheet_id)
         
-        raw_data_ws = self.setup_raw_data_sheet(workbook)
-        self.append_data_row(raw_data_ws, report_data)
+        if raw_data_ws is None:
+            raw_data_ws = self.setup_raw_data_sheet(workbook)
+        
+        # Get existing data ONLY if not provided
+        if existing is None:
+            print("  ⚠️  No existing data provided - reading from sheets")
+            existing = self.get_existing_data(raw_data_ws)
+        else:
+            print(f"  ✓ Using provided data ({len(existing)} records)")
+        # Don't invalidate cache - just update it later
+        
+        # Check if this brand+week exists
+        key = f"{brand_name}|{report_data['iso_week']}"
+        
+        # Build row data
+        row_data = self.build_data_row(report_data)
+        new_total_reviews = report_data['total_reviews']
+        
+        if key in existing:
+            # Already exists - check if changed
+            old_total_reviews = existing[key]['total_reviews']
+            row_num = existing[key]['row_num']
+            
+            if new_total_reviews == old_total_reviews:
+                print(f"  ⏭️  SKIP: {brand_name} | {report_data['iso_week']} - no changes ({new_total_reviews} reviews)")
+            else:
+                # Data changed - UPDATE existing row
+                print(f"  🔄 UPDATE: Row {row_num} - {old_total_reviews} → {new_total_reviews} reviews")
+                raw_data_ws.update(range_name=f'A{row_num}', values=[row_data])
+                print(f"    ✅ Updated")
+                
+                # Update cache in-place
+                existing[key] = {'row_num': row_num, 'total_reviews': new_total_reviews}
+        else:
+            # New entry - INSERT
+            print(f"  ➕ INSERT: {brand_name} | {report_data['iso_week']} ({new_total_reviews} reviews)")
+            raw_data_ws.append_row(row_data)
+            print(f"    ✅ Appended")
+            
+            # Update cache in-place (new row number = existing count + 2 for header)
+            new_row_num = len(existing) + 2
+            existing[key] = {'row_num': new_row_num, 'total_reviews': new_total_reviews}
         
         print(f"\n✅ UPLOAD COMPLETE")
-        print(f"🔗 https://docs.google.com/spreadsheets/d/{spreadsheet_id}\n")
         
-        return spreadsheet_id
+        # Return reusable objects for batch operations
+        return {
+            'spreadsheet_id': workbook.id if hasattr(workbook, 'id') else spreadsheet_id,
+            'workbook': workbook,
+            'raw_data_ws': raw_data_ws,
+            'existing': existing
+        }
 
 
 if __name__ == "__main__":

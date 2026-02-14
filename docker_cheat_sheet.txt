@@ -1,0 +1,18 @@
+# Start everything
+docker-compose up -d
+
+# Run pipeline manually
+docker-compose run app python pipeline.py
+
+# Check logs
+docker-compose logs -f
+
+# Restart (after .env changes)
+docker-compose restart
+
+# Stop everything
+docker-compose down
+
+# Nuclear reset (if broken)
+docker-compose down -v
+docker-compose up -d

@@ -1,0 +1,5 @@
+run from root folder with command: "python -m package.module"
+
+exmpl:
+
+python -m tests.test_batching

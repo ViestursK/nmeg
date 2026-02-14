@@ -172,33 +172,41 @@ class TrustpilotScraper:
         except Exception as e:
             print(f"  ⚠️  Failed to fetch topics: {e}")
     
-    def _save_review(self, company_id, review):
-        """Save single review to database"""
+    def _should_save_review(self, company_id, review):
+        """Check if review already exists (without saving)"""
         review_id = review.get("id")
-        
-        # Check if review already exists
         existing = self.db.query(
-            "SELECT id FROM reviews WHERE review_id = %s;",
+            "SELECT 1 FROM reviews WHERE review_id = %s LIMIT 1;",
             (review_id,)
         )
+        return not existing
+    
+    def _save_review_batch(self, batch):
+        """Save multiple reviews in single transaction"""
+        if not batch:
+            return
         
-        if not existing:
+        conn = self.db.connect()
+        cur = conn.cursor()
+        
+        for company_id, review in batch:
             consumer = review.get("consumer", {})
             dates = review.get("dates", {})
             labels = review.get("labels", {})
             verification = labels.get("verification", {})
             reply = review.get("reply")
             
-            self.db.query("""
+            cur.execute("""
                 INSERT INTO reviews (
                     company_id, review_id, rating, title, text,
                     author_name, author_id, author_country_code, author_review_count,
                     review_date, experience_date, verified, language,
                     reply_message, reply_date, likes, source, labels, is_edited
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (review_id) DO NOTHING;
             """, (
                 company_id,
-                review_id,
+                review.get("id"),
                 review.get("rating"),
                 review.get("title"),
                 review.get("text"),
@@ -215,19 +223,20 @@ class TrustpilotScraper:
                 review.get("likes", 0),
                 review.get("source"),
                 json.dumps(labels),
-                dates.get("updatedDate") is not None  # is_edited = True if updatedDate exists
+                dates.get("updatedDate") is not None
             ))
-            return True
-        return False
+        
+        conn.commit()
+        cur.close()
     
     def scrape_and_save(self, company_domain, use_date_filter=None, batch_size=100):
         """
-        Scrape reviews and save directly to database
+        Scrape reviews and save in batches for performance
         
         Args:
             company_domain: e.g., "ketogo.app"
             use_date_filter: If None, auto-detect based on brand existence
-            batch_size: Commit to DB every X reviews (default 100)
+            batch_size: Commit to DB every N reviews (default 100)
         """
         # Auto-detect if not specified
         if use_date_filter is None:
@@ -251,10 +260,9 @@ class TrustpilotScraper:
         # Build base URL
         base_url = f"https://www.trustpilot.com/review/{company_domain}"
         
-        # Build params - ORDER MATTERS!
+        # Build params
         params = {}
         
-        # Only add date filter for existing brands (incremental mode)
         if use_date_filter:
             params["date"] = "last30days"
             print(f"🔄 Incremental mode: Fetching last 30 days for {company_domain}")
@@ -269,7 +277,10 @@ class TrustpilotScraper:
         total_reviews = None
         estimated_pages = None
         
-        # Use session to maintain cookies
+        # Batch tracking
+        batch_buffer = []
+        consecutive_empty_pages = 0
+        
         session = requests.Session()
         session.headers.update(self._get_headers())
         
@@ -298,19 +309,14 @@ class TrustpilotScraper:
                 
                 # Extract and save metadata from first page
                 if page == 1:
-                    # Save company metadata
                     self._save_company_metadata(company_id, page_props)
-                    
-                    # Save AI summary (now from correct location)
                     self._save_ai_summary(company_id, page_props)
                     
-                    # Fetch and save topics from separate API
                     business_unit = page_props.get('businessUnit', {})
                     business_id = business_unit.get('id')
                     if business_id:
                         self._fetch_and_save_topics(company_id, business_id)
                     
-                    # Get total count
                     if not total_reviews:
                         business_unit = page_props.get('businessUnit', {})
                         num_reviews = business_unit.get('numberOfReviews')
@@ -331,19 +337,37 @@ class TrustpilotScraper:
                     print(f"\n✓ Completed at page {page}")
                     break
                 
-                # Save reviews immediately
+                # Add to batch buffer
+                new_saves_this_page = 0
                 for review in reviews:
-                    if self._save_review(company_id, review):
-                        total_inserted += 1
+                    if self._should_save_review(company_id, review):
+                        batch_buffer.append((company_id, review))
+                        new_saves_this_page += 1
+                
+                # Commit batch if full
+                if len(batch_buffer) >= batch_size:
+                    self._save_review_batch(batch_buffer)
+                    total_inserted += len(batch_buffer)
+                    batch_buffer = []
                 
                 all_reviews.extend(reviews)
+                
+                # Early stopping for incremental mode
+                if use_date_filter:
+                    if new_saves_this_page == 0:
+                        consecutive_empty_pages += 1
+                        if consecutive_empty_pages >= 2:
+                            print(f"\n✓ Early stop: 2 consecutive pages with no new reviews")
+                            break
+                    else:
+                        consecutive_empty_pages = 0
                 
                 # Show progress
                 if estimated_pages:
                     progress = (page / estimated_pages) * 100
-                    print(f"  Page {page}/{estimated_pages}: {len(reviews)} reviews | Saved: {total_inserted:,} ({progress:.0f}%)")
+                    print(f"  Page {page}/{estimated_pages}: {len(reviews)} reviews | New: {new_saves_this_page} | Buffered: {len(batch_buffer)} ({progress:.0f}%)")
                 else:
-                    print(f"  Page {page}: {len(reviews)} reviews | Saved: {total_inserted:,}")
+                    print(f"  Page {page}: {len(reviews)} reviews | New: {new_saves_this_page} | Buffered: {len(batch_buffer)}")
                 
             except Exception as e:
                 print(f"\n❌ Error on page {page}: {e}")
@@ -351,7 +375,12 @@ class TrustpilotScraper:
             
             page += 1
         
-        # Update company last updated timestamp
+        # Save remaining batch
+        if batch_buffer:
+            self._save_review_batch(batch_buffer)
+            total_inserted += len(batch_buffer)
+        
+        # Update company timestamp
         self.db.query(
             "UPDATE companies SET updated_at = NOW() WHERE id = %s;",
             (company_id,)
