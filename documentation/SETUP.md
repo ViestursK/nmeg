@@ -1,115 +1,296 @@
 # Setup Guide
 
-## Prerequisites (30 min)
-
-### 1. Google Cloud Service Account
-1. Create project at https://console.cloud.google.com
-2. Enable: Google Sheets API + Google Drive API
-3. Create service account → Download JSON key
-4. Save as `sheets/service_account.json`
-5. Copy service account email (need it for step 2)
-
-### 2. Google Sheet
-1. Create sheet named "Trustpilot Report"
-2. Share with service account email as Editor
-3. Get folder ID from Drive URL (optional)
-
-### 3. Trustpilot JWT
-1. Login to trustpilot.com as a normal user (SSO with gmail)
-2. F12 → Network → *Refresh the page* → "Ketogo.app?" → Request Headers → Cookie → look for: jwt=xxxx.yyyy.zzzz
-3. Copy entire value (starts with eyJ...) in your .env to TRUSTPILOT_JWT=
-
-### 4. Docker Desktop
-Download from docker.com, install, start it.
+Complete setup from scratch. Everything you need.
 
 ---
 
-## Installation (5 min)
+## Part 1: Prerequisites (15-20 minutes)
 
-### 1. Create .env file
+### 1. Install Docker Desktop
+
+**Download:** https://www.docker.com/products/docker-desktop/
+
+- Windows: Choose your version (most likely Intel/AMD)
+- Mac: Choose Apple Silicon or Intel based on your Mac
+- Install, start it, wait for "Docker Desktop is running"
+
+---
+
+### 2. Google Cloud Setup
+
+#### Create Service Account & Get Credentials
+
+1. Go to https://console.cloud.google.com
+2. Create new project (or select existing)
+3. Search "APIs & Services" → Enable these APIs:
+   - Google Sheets API
+   - Google Drive API
+4. Go to "Credentials" → "Create Credentials" → "Service Account"
+5. Name it (e.g., "trustpilot-reporter"), click "Create"
+6. Skip role assignment, click "Continue" → "Done"
+7. Click the service account email you just created
+8. Go to "Keys" tab → "Add Key" → "Create New Key" → "JSON"
+9. Download saves as `project-name-xxxxx.json`
+10. **Copy the service account email** (looks like: `name@project.iam.gserviceaccount.com`)
+
+#### Rename & Move File
+
+- Rename downloaded JSON to: `service_account.json`
+- Move it to: `trustpilot-analytics/sheets/service_account.json`
+
+---
+
+### 3. Google Sheet Setup
+
+#### Create Sheet
+
+1. Go to https://drive.google.com
+2. New → Google Sheets → Blank spreadsheet
+3. Name it: **Trustpilot Report** (exact name matters)
+4. Copy the **Folder ID** from URL:
+   - URL: `https://drive.google.com/drive/folders/1ABC123xyz`
+   - Folder ID: `1ABC123xyz`
+
+#### Share with Service Account
+
+1. Click "Share" button
+2. Paste the service account email you copied earlier
+3. Give it "Editor" access
+4. Uncheck "Notify people"
+5. Click "Share"
+
+---
+
+### 4. Extract Trustpilot JWT Token
+
+#### Steps:
+
+1. Login to https://www.trustpilot.com/review/ketogo.app? with your account
+2. Press **F12** to open Developer Tools
+3. Go to **Network** tab (Chrome) → Refresh the page → under filter select **All** → open **ketogo.app**
+4. Left Request Headers → sidebar → Cookie
+5. Find cookie named: **jwt**
+6. Copy the entire **Value** column (starts with `eyJ...`, usually 300-400 characters)
+
+**Important:** 
+- Don't include `jwt=` prefix
+- Don't include semicolon at end
+- Just the token itself: `eyJhbGc...xyz`
+
+**Token expires in ~90 days** - you'll need to repeat this step when it expires.
+
+---
+
+## Part 2: Configuration (5 minutes)
+
+### 1. Create .env File
+
+**Mac:**
 ```bash
-cp .env.template .env
+cd ~/path/to/trustpilot-analytics
+cp .env.example .env
 nano .env
 ```
 
-Fill in:
-```bash
-DB_PASS=any_password_you_want
-GOOGLE_DRIVE_FOLDER_ID=your_folder_id_or_blank
-TRUSTPILOT_JWT=eyJ_your_token_here
+**Windows:**
+```powershell
+cd D:\path\to\trustpilot-analytics
+copy .env.example .env
+notepad .env
 ```
 
-### 2. Add credentials
-Place service_account.json in `sheets/service_account.json`
+### 2. Fill in Values
 
-### 3. Edit brands
-Edit `brands_config.json` with your brands:
+Replace these in `.env`:
+```bash
+# Database password - choose any secure password
+DB_PASS=your_secure_password_here
+
+# JWT token you copied from Trustpilot
+TRUSTPILOT_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx.yyyyy
+
+# Google Drive folder ID you copied
+GOOGLE_DRIVE_FOLDER_ID=1ABC123xyz
+
+# Leave these as-is:
+GOOGLE_SHEETS_CREDENTIALS=sheets/service_account.json
+MASTER_SPREADSHEET_NAME=Trustpilot Report
+```
+
+**Save and close.**
+
+---
+
+### 3. Configure Brands (Optional)
+
+Edit `brands_config.json` if you want different brands:
 ```json
 {
   "brands": [
-    {"domain": "yourbrand.com", "name": "Your Brand"},
-    {"domain": "yourotherbrand.com", "name": "Your Other Brand"}
+    {
+      "domain": "yourbrand.com",
+      "name": "Your Brand Name"
+    },
+    {
+      "domain": "yourotherbrand.com",
+      "name": "Your Other Brand Name"
+    }
   ]
 }
 ```
 
-### 4. Run setup
-```bash
-chmod +x setup_mac.sh
-./setup_mac.sh
-```
-
-Done. System is running.
+- `domain`: Trustpilot domain (from URL: trustpilot.com/review/**yourbrand.com**)
+- `name`: Display name in Google Sheets
 
 ---
 
-## Test (2 min)
+## Part 3: Installation & First Run
 
+### Mac/Linux (Terminal)
 ```bash
-# Verify
+# Navigate to project
+cd ~/path/to/trustpilot-analytics
+
+# Build (takes 2-5 min first time)
+docker-compose build
+
+# Start containers
+docker-compose up -d
+
+# Wait for database to start
+sleep 10
+
+# Initialize database
+docker-compose exec app python setup_db.py
+
+# Verify setup
 docker-compose exec app python preflight_check.py
 
-# Test one week
-docker-compose exec app python weekly_job.py --week 2026-W06
-
-# Backfill all data (30+ min)
+# Full backfill (30-60 min depending on reviews)
 docker-compose exec app python weekly_job.py --backfill
 ```
 
 ---
 
-## Weekly Automation
+### Windows (PowerShell/CMD)
+```powershell
+# Navigate to project
+cd D:\path\to\trustpilot-analytics
 
-Add to crontab:
-```bash
-crontab -e
-# Add:
-0 0 * * 1 cd ~/trustpilot-analytics && docker-compose exec -T app python weekly_job.py
+# Build (takes 2-5 min first time)
+docker-compose build
+
+# Start containers
+docker-compose up -d
+
+# Wait for database to start
+timeout /t 10
+
+# Initialize database
+docker-compose exec app python setup_db.py
+
+# Verify setup
+docker-compose exec app python preflight_check.py
+
+# Full backfill (30-60 min depending on reviews)
+docker-compose exec app python weekly_job.py --backfill
 ```
 
-Runs every Monday at midnight.
+---
+
+## Part 4: Verify It Worked
+
+### 1. Check Logs
+
+Look for:
+```
+✅ Fetched: X,XXX reviews
+✅ Saved: X,XXX new reviews
+✅ Uploaded: XX weeks
+```
+
+If you see errors, check `Troubleshooting.md`
+
+### 2. Check Google Sheet
+
+Open your "Trustpilot Report" sheet:
+- Should have `raw_data` tab
+- Should have rows of weekly data
+- Each row = one brand + one week
+
+---
+
+## Daily Usage
+```bash
+# Start system
+docker-compose up -d
+
+# Stop system
+docker-compose down
+
+# View logs
+docker-compose logs -f app
+
+# Run weekly update manually
+docker-compose exec app python weekly_job.py
+
+# Test specific week
+docker-compose exec app python weekly_job.py --week 2026-W06
+```
 
 ---
 
 ## Maintenance
 
-### JWT expires every 90 days:
-1. Extract new token (step 3 above)
-2. Update `.env`
-3. `docker-compose restart app`
+### JWT Token Expires (every ~90 days)
 
-### Add/remove brands:
+When you see "Token expired" errors:
+
+1. Extract new JWT token (see Part 1, Step 4)
+2. Update `.env` file with new token
+3. Restart: `docker-compose restart app`
+
+### Add/Remove Brands
+
 1. Edit `brands_config.json`
-2. `docker-compose restart app`
+2. Restart: `docker-compose restart app`
+3. Run backfill for new brands: `docker-compose exec app python weekly_job.py --backfill`
+
+### Update Credentials
+
+After changing `.env`, `service_account.json`, or `brands_config.json`:
+```bash
+docker-compose restart app
+```
+
+No rebuild needed.
 
 ---
 
-## Important
+## Troubleshooting
 
-**Changing credentials (.env, service_account.json, brands_config.json)?**
-→ Just restart: `docker-compose restart app`
+See `Troubleshooting.md` for common issues.
 
-**NO REBUILD NEEDED**
+Quick checks:
+```bash
+# Check if containers running
+docker-compose ps
 
-**Changing Python code?**
-→ Rebuild: `docker-compose down && docker-compose build && docker-compose up -d`
+# Check logs for errors
+docker-compose logs app
+
+# Validate environment
+docker-compose exec app python preflight_check.py
+```
+
+---
+
+## Files You Need
+
+After setup, verify you have:
+```
+trustpilot-analytics/
+├── .env                           ✅ Created from .env.example
+├── sheets/service_account.json    ✅ Downloaded from Google Cloud
+└── brands_config.json             ✅ Edited with your brands
+```

@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Python Application
+  # Python Application with Cron
   app:
     build: .
     container_name: trustpilot_app
@@ -40,17 +40,17 @@ services:
       
       # Trustpilot
       TRUSTPILOT_JWT: ${TRUSTPILOT_JWT}
+      
+      # Timezone for cron (optional - defaults to UTC)
+      TZ: UTC
     
     volumes:
       # Mount credentials file
       - ./sheets/service_account.json:/app/sheets/service_account.json:ro
       # Mount brands config
       - ./brands_config.json:/app/brands_config.json:ro
-      # Optional: mount output directory for local testing
+      # Optional: mount output directory
       - ./outputs:/app/outputs
-    
-    # Keep container running without executing job
-    command: tail -f /dev/null
     
     restart: unless-stopped
 

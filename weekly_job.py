@@ -32,7 +32,7 @@ def get_last_completed_week():
 
 
 def get_all_weeks_from_db(db, brand_domain):
-    """Get all ISO weeks that have reviews in DB"""
+    """Get all ISO weeks that have reviews in DB (excluding current incomplete week)"""
     result = db.query("""
         SELECT DISTINCT 
             TO_CHAR(DATE_TRUNC('week', review_date), 'IYYY-"W"IW') as iso_week,
@@ -40,12 +40,12 @@ def get_all_weeks_from_db(db, brand_domain):
         FROM reviews r
         JOIN companies c ON r.company_id = c.id
         WHERE c.name = %s
+          AND review_date < DATE_TRUNC('week', CURRENT_DATE)
         GROUP BY iso_week
         ORDER BY iso_week DESC
     """, (brand_domain,))
     
     return [row['iso_week'] for row in result]
-
 
 def scrape_brand(db, brand):
     """Scrape one brand (incremental 30 days)"""
@@ -159,11 +159,22 @@ def backfill_mode(brands, weeks_limit=None):
         print(f"{'─'*70}\n")
         
         try:
-            # 1. Backfill always does full historical scrape
-            print("📥 Backfill mode - full historical scrape\n")
-            scraper = TrustpilotScraper(db)
-            scraper.scrape_and_save(brand['domain'], use_date_filter=False, batch_size=100)
-            
+            # 1. Check if brand already has data
+            existing_count = db.query("""
+                SELECT COUNT(*) as count
+                FROM reviews r
+                JOIN companies c ON r.company_id = c.id
+                WHERE c.name = %s
+            """, (brand['domain'],))
+
+            review_count = existing_count[0]['count'] if existing_count else 0
+
+            if review_count > 0:
+                print(f"📊 Found {review_count:,} existing reviews in DB - skipping scrape\n")
+            else:
+                print("📥 No data found - running full historical scrape\n")
+                scraper = TrustpilotScraper(db)
+                scraper.scrape_and_save(brand['domain'], use_date_filter=False, batch_size=100)
             # 2. Get all weeks from DB
             all_weeks = get_all_weeks_from_db(db, brand['domain'])
             
