@@ -1,0 +1,59 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17
+    container_name: trustpilot_db
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Python Application
+  app:
+    build: .
+    container_name: trustpilot_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      
+      # Google Sheets
+      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID}
+      GOOGLE_SHEETS_CREDENTIALS: ${GOOGLE_SHEETS_CREDENTIALS}
+      MASTER_SPREADSHEET_NAME: ${MASTER_SPREADSHEET_NAME}
+      
+      # Trustpilot
+      TRUSTPILOT_JWT: ${TRUSTPILOT_JWT}
+    
+    volumes:
+      # Mount credentials file
+      - ./sheets/service_account.json:/app/sheets/service_account.json:ro
+      # Mount brands config
+      - ./brands_config.json:/app/brands_config.json:ro
+      # Optional: mount output directory for local testing
+      - ./outputs:/app/outputs
+    
+    # Keep container running without executing job
+    command: tail -f /dev/null
+    
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
