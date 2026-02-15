@@ -1,13 +1,19 @@
 # import_topics.py
 import json
-from db import Database
+import os
+from db.database import Database
 
 def import_topics():
     """Import Trustpilot topics into database"""
     db = Database()
     
     # Load topics JSON
-    with open('tp_topics.json', 'r', encoding='utf-8') as f:
+    
+    # Load topics JSON from project root
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    topics_file = os.path.join(root_dir, 'tp_topics.json')
+    
+    with open(topics_file, 'r', encoding='utf-8') as f:
         topics = json.load(f)
     
     print(f"📥 Importing {len(topics)} topics...")

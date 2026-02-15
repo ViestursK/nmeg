@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-from db import Database
+from db.database import Database
 from scraper import TrustpilotScraper
 from generate_weekly_report import generate_weekly_report
 from sheets.sheets_uploader import DashboardSheetsUploader
@@ -159,19 +159,10 @@ def backfill_mode(brands, weeks_limit=None):
         print(f"{'─'*70}\n")
         
         try:
-            # 1. Full scrape (no date filter) - only on first run
-            metadata = db.query(
-                "SELECT COUNT(*) as count FROM reviews r JOIN companies c ON r.company_id = c.id WHERE c.name = %s",
-                (brand['domain'],)
-            )
-            
-            if metadata[0]['count'] == 0:
-                print("📥 First run - full historical scrape\n")
-                scraper = TrustpilotScraper(db)
-                scraper.scrape_and_save(brand['domain'], use_date_filter=False, batch_size=100)
-            else:
-                print("📊 Reviews exist - incremental scrape\n")
-                scrape_brand(db, brand)
+            # 1. Backfill always does full historical scrape
+            print("📥 Backfill mode - full historical scrape\n")
+            scraper = TrustpilotScraper(db)
+            scraper.scrape_and_save(brand['domain'], use_date_filter=False, batch_size=100)
             
             # 2. Get all weeks from DB
             all_weeks = get_all_weeks_from_db(db, brand['domain'])

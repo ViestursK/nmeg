@@ -2,7 +2,7 @@
 docker-compose up -d
 
 # Run pipeline manually
-docker-compose run app python pipeline.py
+docker-compose run app python weekly_job.py
 
 # Check logs
 docker-compose logs -f

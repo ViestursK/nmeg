@@ -94,7 +94,7 @@ def check_database():
     print("\n🔍 Checking database connection...")
     
     try:
-        from db import Database
+        from db.database import Database
         db = Database()
         db.connect()
         

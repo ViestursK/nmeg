@@ -1,4 +1,4 @@
-from db import Database
+from db.database import Database
 
 def reset_database():
     """Drop all existing tables and recreate with new schema"""
@@ -14,14 +14,14 @@ def reset_database():
     print("\n🗑️  Dropping old tables...")
     
     # Drop tables in reverse order of dependencies
-    db.query("DROP TABLE IF EXISTS weekly_snapshots CASCADE;")
-    print("  Dropped weekly_snapshots")
-    
     db.query("DROP TABLE IF EXISTS ai_summaries CASCADE;")
     print("  Dropped ai_summaries")
     
     db.query("DROP TABLE IF EXISTS reviews CASCADE;")
     print("  Dropped reviews")
+    
+    db.query("DROP TABLE IF EXISTS topics CASCADE;")
+    print("  Dropped topics")
     
     db.query("DROP TABLE IF EXISTS companies CASCADE;")
     print("  Dropped companies")
@@ -68,8 +68,7 @@ def reset_database():
     """)
     print("✅ Created 'ai_summaries' table")
     
-   # In reset.py, update the reviews table creation:
-
+    # Reviews table
     db.query("""
         CREATE TABLE IF NOT EXISTS reviews (
             id SERIAL PRIMARY KEY,
@@ -78,7 +77,7 @@ def reset_database():
             rating INTEGER,
             title TEXT,
             text TEXT,
-            text_en TEXT,  -- ADD THIS LINE
+            text_en TEXT,
             author_name VARCHAR(255),
             author_id VARCHAR(255),
             author_country_code VARCHAR(10),
@@ -93,39 +92,13 @@ def reset_database():
             source VARCHAR(50),
             labels JSONB,
             scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_edited BOOLEAN DEFAULT FALSE
         );
     """)
     print("✅ Created 'reviews' table")
     
-    # Weekly snapshots table
-    db.query("""
-        CREATE TABLE IF NOT EXISTS weekly_snapshots (
-            id SERIAL PRIMARY KEY,
-            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-            week VARCHAR(10) NOT NULL,
-            snapshot_date DATE NOT NULL,
-            total_reviews INTEGER,
-            avg_rating NUMERIC(3,2),
-            positive_count INTEGER,
-            neutral_count INTEGER,
-            negative_count INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(company_id, week)
-        );
-    """)
-    print("✅ Created 'weekly_snapshots' table")
-    
-    # Create indexes
-    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_company ON reviews(company_id);")
-    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_date ON reviews(review_date);")
-    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_scraped ON reviews(scraped_at);")
-    db.query("CREATE INDEX IF NOT EXISTS idx_snapshots_company ON weekly_snapshots(company_id);")
-    db.query("CREATE INDEX IF NOT EXISTS idx_ai_summaries_company ON ai_summaries(company_id);")
-    print("✅ Created indexes")
-    
-    # Add to reset.py
-
+    # Topics table
     db.query("""
         CREATE TABLE IF NOT EXISTS topics (
             id SERIAL PRIMARY KEY,
@@ -135,12 +108,15 @@ def reset_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
-
     print("✅ Created 'topics' table")
-
-    # Create index for fast searches
-    db.query("CREATE INDEX IF NOT EXISTS idx_topics_key ON topics(topic_key);")
     
+    # Create indexes
+    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_company ON reviews(company_id);")
+    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_date ON reviews(review_date);")
+    db.query("CREATE INDEX IF NOT EXISTS idx_reviews_scraped ON reviews(scraped_at);")
+    db.query("CREATE INDEX IF NOT EXISTS idx_ai_summaries_company ON ai_summaries(company_id);")
+    db.query("CREATE INDEX IF NOT EXISTS idx_topics_key ON topics(topic_key);")
+    print("✅ Created indexes")
     
     db.close()
     print("\n🎉 Database reset complete! Ready to scrape.")

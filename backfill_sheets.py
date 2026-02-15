@@ -12,7 +12,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, '/mnt/user-data/uploads')
 
-from db import Database
+from db.database import Database
 from generate_weekly_report import generate_weekly_report
 from sheets.sheets_uploader import DashboardSheetsUploader
 

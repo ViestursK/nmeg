@@ -202,48 +202,6 @@ ALTER SEQUENCE public.topics_id_seq OWNED BY public.topics.id;
 
 
 --
--- Name: weekly_snapshots; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.weekly_snapshots (
-    id integer NOT NULL,
-    company_id integer NOT NULL,
-    week character varying(10) NOT NULL,
-    snapshot_date date NOT NULL,
-    total_reviews integer,
-    avg_rating numeric(3,2),
-    positive_count integer,
-    neutral_count integer,
-    negative_count integer,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-);
-
-
-ALTER TABLE public.weekly_snapshots OWNER TO postgres;
-
---
--- Name: weekly_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.weekly_snapshots_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE public.weekly_snapshots_id_seq OWNER TO postgres;
-
---
--- Name: weekly_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.weekly_snapshots_id_seq OWNED BY public.weekly_snapshots.id;
-
-
---
 -- Name: ai_summaries id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -269,13 +227,6 @@ ALTER TABLE ONLY public.reviews ALTER COLUMN id SET DEFAULT nextval('public.revi
 --
 
 ALTER TABLE ONLY public.topics ALTER COLUMN id SET DEFAULT nextval('public.topics_id_seq'::regclass);
-
-
---
--- Name: weekly_snapshots id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.weekly_snapshots ALTER COLUMN id SET DEFAULT nextval('public.weekly_snapshots_id_seq'::regclass);
 
 
 --
@@ -343,22 +294,6 @@ ALTER TABLE ONLY public.topics
 
 
 --
--- Name: weekly_snapshots weekly_snapshots_company_id_week_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.weekly_snapshots
-    ADD CONSTRAINT weekly_snapshots_company_id_week_key UNIQUE (company_id, week);
-
-
---
--- Name: weekly_snapshots weekly_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.weekly_snapshots
-    ADD CONSTRAINT weekly_snapshots_pkey PRIMARY KEY (id);
-
-
---
 -- Name: idx_ai_summaries_company; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -387,13 +322,6 @@ CREATE INDEX idx_reviews_scraped ON public.reviews USING btree (scraped_at);
 
 
 --
--- Name: idx_snapshots_company; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_snapshots_company ON public.weekly_snapshots USING btree (company_id);
-
-
---
 -- Name: idx_topics_key; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -417,14 +345,5 @@ ALTER TABLE ONLY public.reviews
 
 
 --
--- Name: weekly_snapshots weekly_snapshots_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.weekly_snapshots
-    ADD CONSTRAINT weekly_snapshots_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
 -- PostgreSQL database dump complete
 --
-

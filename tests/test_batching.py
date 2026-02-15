@@ -4,7 +4,7 @@ Quick test: Scrape one brand in incremental mode
 Tests batching + early stopping
 """
 
-from db import Database
+from db.database import Database
 from scraper import TrustpilotScraper
 
 print("\n" + "="*70)

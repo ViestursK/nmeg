@@ -127,10 +127,13 @@ class DashboardSheetsUploader:
                 # Sources
                 'verified_count', 'organic_count',
                 
-                # Top languages (3)
+                # Top languages (5 + other)
                 'lang_1', 'lang_1_count',
                 'lang_2', 'lang_2_count',
                 'lang_3', 'lang_3_count',
+                'lang_4', 'lang_4_count',
+                'lang_5', 'lang_5_count',
+                'lang_other', 'lang_other_count',
                 
                 # Top countries (3)
                 'country_1', 'country_1_count',
@@ -139,6 +142,7 @@ class DashboardSheetsUploader:
                 
                 # Themes (all as comma-separated)
                 'positive_themes',
+                'neutral_themes',
                 'negative_themes',
                 
                 # AI
@@ -220,15 +224,22 @@ class DashboardSheetsUploader:
         countries = json.loads(report_data.get('country_breakdown_json', '[]'))
         
         pos_themes = json.loads(report_data.get('positive_themes_json', '[]'))
+        neutral_themes = json.loads(report_data.get('neutral_themes_json', '[]'))
         neg_themes = json.loads(report_data.get('negative_themes_json', '[]'))
         
-        # Top items
         lang1 = langs_sorted[0][0] if len(langs_sorted) > 0 else ''
         lang1_count = langs_sorted[0][1] if len(langs_sorted) > 0 else 0
         lang2 = langs_sorted[1][0] if len(langs_sorted) > 1 else ''
         lang2_count = langs_sorted[1][1] if len(langs_sorted) > 1 else 0
         lang3 = langs_sorted[2][0] if len(langs_sorted) > 2 else ''
         lang3_count = langs_sorted[2][1] if len(langs_sorted) > 2 else 0
+        lang4 = langs_sorted[3][0] if len(langs_sorted) > 3 else ''
+        lang4_count = langs_sorted[3][1] if len(langs_sorted) > 3 else 0
+        lang5 = langs_sorted[4][0] if len(langs_sorted) > 4 else ''
+        lang5_count = langs_sorted[4][1] if len(langs_sorted) > 4 else 0
+
+        # "Other" = sum of remaining
+        other_count = sum(count for _, count in langs_sorted[5:]) if len(langs_sorted) > 5 else 0
         
         country1, country1_count = get_top(countries, 0, 'country')
         country2, country2_count = get_top(countries, 1, 'country')
@@ -239,6 +250,7 @@ class DashboardSheetsUploader:
             return ', '.join([f"{t.get('topic', '')} ({t.get('count', 0)})" for t in themes])
         
         positive_themes_str = format_themes(pos_themes)
+        neutral_themes_str = format_themes(neutral_themes)
         negative_themes_str = format_themes(neg_themes)
         
         total = report_data['total_reviews']
@@ -291,6 +303,9 @@ class DashboardSheetsUploader:
             lang1, lang1_count,
             lang2, lang2_count,
             lang3, lang3_count,
+            lang4, lang4_count,
+            lang5, lang5_count,
+            'Other', other_count,
             
             # Countries
             country1, country1_count,
@@ -299,6 +314,7 @@ class DashboardSheetsUploader:
             
             # Themes (all as comma-separated)
             positive_themes_str,
+            neutral_themes_str,
             negative_themes_str,
             
             # AI
