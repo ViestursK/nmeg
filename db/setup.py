@@ -167,7 +167,7 @@ def setup_database():
     print("\n" + "="*70)
     print("✅ SETUP COMPLETE")
     print("="*70)
-    print("  python weekly_job.py --backfill")
+    print("  python preflight_check.py")
     print()
 
 

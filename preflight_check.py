@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pre-flight Check - Verify everything is configured correctly
-Run this before deploying weekly_job.py
+Docker-aware version - works both inside and outside containers
 """
 
 import os
@@ -9,15 +9,22 @@ import sys
 import json
 
 def check_env_file():
-    """Check .env file exists and has required variables"""
-    print("🔍 Checking .env file...")
+    """Check environment variables (from .env file or Docker)"""
     
-    if not os.path.exists('.env'):
-        print("  ❌ .env file not found")
-        return False
+    # Detect if running in Docker
+    in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER') == 'true'
     
-    from dotenv import load_dotenv
-    load_dotenv()
+    if in_docker:
+        print("🔍 Checking environment variables (Docker mode)...")
+    else:
+        print("🔍 Checking .env file...")
+        
+        if not os.path.exists('.env'):
+            print("  ❌ .env file not found")
+            return False
+        
+        from dotenv import load_dotenv
+        load_dotenv()
     
     required = [
         'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS',
@@ -34,7 +41,10 @@ def check_env_file():
         print(f"  ❌ Missing variables: {', '.join(missing)}")
         return False
     
-    print("  ✅ All required environment variables present")
+    if in_docker:
+        print("  ✅ All required environment variables present (from docker-compose)")
+    else:
+        print("  ✅ All required environment variables present")
     return True
 
 
@@ -69,10 +79,15 @@ def check_google_credentials():
     """Check Google credentials file exists"""
     print("\n🔍 Checking Google credentials...")
     
-    from dotenv import load_dotenv
-    load_dotenv()
-    
+    # Try to load from environment first (works in Docker)
     creds_path = os.getenv('GOOGLE_SHEETS_CREDENTIALS')
+    
+    # Fallback to loading from .env (outside Docker)
+    if not creds_path:
+        from dotenv import load_dotenv
+        load_dotenv()
+        creds_path = os.getenv('GOOGLE_SHEETS_CREDENTIALS')
+    
     if not creds_path:
         print("  ❌ GOOGLE_SHEETS_CREDENTIALS not set")
         return False
@@ -112,14 +127,14 @@ def check_database():
         
         if missing_tables:
             print(f"  ❌ Missing tables: {', '.join(missing_tables)}")
-            print("     Run: python reset.py")
+            print("     Run: docker-compose exec app python -m db.setup")
             db.close()
             return False
         
         # Check topics populated
         topics_count = db.query("SELECT COUNT(*) as count FROM topics")[0]['count']
         if topics_count == 0:
-            print("  ⚠️  Topics table empty - run: python import_topics.py")
+            print("  ⚠️  Topics table empty - run: docker-compose exec app python -m db.import_topics")
         
         db.close()
         print("  ✅ Database connected, all tables present")
@@ -164,8 +179,13 @@ def check_python_packages():
 def main():
     """Run all checks"""
     
+    in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER') == 'true'
+    
     print("\n" + "="*70)
-    print("PRE-FLIGHT CHECK - Weekly Job Deployment")
+    if in_docker:
+        print("PRE-FLIGHT CHECK - Docker Container")
+    else:
+        print("PRE-FLIGHT CHECK - Local Environment")
     print("="*70 + "\n")
     
     checks = [
@@ -187,12 +207,16 @@ def main():
     print("\n" + "="*70)
     
     if all(results):
-        print("✅ ALL CHECKS PASSED - Ready to deploy!")
+        print("✅ ALL CHECKS PASSED - Ready to run!")
         print("="*70)
         print("\nNext steps:")
-        print("  1. Test run: python weekly_job.py --week 2026-W06")
-        print("  2. Backfill: python weekly_job.py --backfill")
-        print("  3. Setup cron: See DEPLOYMENT.md")
+        if in_docker:
+            print("  1. Test run: docker-compose exec app python weekly_job.py --week 2026-W06")
+            print("  2. Backfill: docker-compose exec app python weekly_job.py --backfill")
+        else:
+            print("  1. Start containers: docker-compose up -d")
+            print("  2. Test run: python weekly_job.py --week 2026-W06")
+            print("  3. Backfill: python weekly_job.py --backfill")
         print()
         return 0
     else:

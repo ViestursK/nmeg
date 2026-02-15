@@ -56,10 +56,32 @@ TRUSTPILOT_JWT=CHANGE_ME_your.jwt.token
 EOF
     echo "✅ Created .env template"
     echo ""
-    echo "⚠️  IMPORTANT: Edit .env and add your actual credentials!"
+    echo "⚠️  IMPORTANT: Before running this script, you need to:"
+    echo ""
+    echo "1. Get the Trustpilot Report template link"
+    echo "2. Make a copy to your Google Drive"
+    echo "3. Rename it to exactly: Trustpilot Report"
+    echo "4. Share it AND the folder with your service account (Editor)"
+    echo "5. Get the folder ID from the URL"
+    echo "6. Extract JWT token from Trustpilot"
+    echo ""
+    echo "Then edit .env and add:"
+    echo "  - DB_PASS (secure password)"
+    echo "  - GOOGLE_DRIVE_FOLDER_ID (from folder URL, no trailing dash!)"
+    echo "  - TRUSTPILOT_JWT (from browser cookies)"
+    echo ""
     echo "   Run: nano .env"
     echo ""
-    read -p "Press Enter after updating .env..."
+    read -p "Press Enter after completing ALL steps above..."
+fi
+
+# Verify .env has been updated
+if grep -q "CHANGE_ME" .env; then
+    echo "❌ .env file still contains CHANGE_ME placeholders"
+    echo ""
+    echo "Please edit .env and replace all CHANGE_ME values with actual credentials"
+    echo "Run: nano .env"
+    exit 1
 fi
 
 # Check for credentials file
@@ -98,7 +120,7 @@ docker-compose up -d
 
 echo ""
 echo "Waiting for database to be ready..."
-sleep 10
+sleep 15
 
 echo ""
 echo "========================================================================"
@@ -106,7 +128,8 @@ echo "INITIALIZING DATABASE"
 echo "========================================================================"
 echo ""
 
-docker-compose exec app python db/setup.py
+# Use python -m syntax (fixed from our testing)
+docker-compose exec app python -m db.setup
 
 echo ""
 echo "========================================================================"
@@ -123,17 +146,20 @@ echo "========================================================================"
 echo ""
 echo "Next steps:"
 echo ""
-echo "1. Test with a specific week:"
+echo "1. Test with a specific week (should show 'no data' - that's normal):"
 echo "   docker-compose exec app python weekly_job.py --week 2026-W06"
 echo ""
-echo "2. Backfill all historical data (30+ min):"
+echo "2. Backfill all historical data (30-60 min):"
 echo "   docker-compose exec app python weekly_job.py --backfill"
 echo ""
-echo "3. View logs:"
+echo "3. Verify cron is set up:"
+echo "   docker-compose exec app crontab -l"
+echo ""
+echo "4. View logs:"
 echo "   docker-compose logs -f app"
 echo ""
-echo "4. Stop everything:"
+echo "5. Stop everything:"
 echo "   docker-compose down"
 echo ""
-echo "See DOCKER_DEPLOYMENT.md for full documentation."
+echo "Your system will auto-run every Monday at midnight!"
 echo ""
