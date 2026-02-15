@@ -25,16 +25,10 @@ RUN mkdir -p /app/sheets
 RUN chmod +x weekly_job.py preflight_check.py
 
 # Create wrapper script that loads environment
-RUN echo '#!/bin/sh\n\
-export DB_HOST="$DB_HOST"\n\
-export DB_PORT="$DB_PORT"\n\
-export DB_NAME="$DB_NAME"\n\
-export DB_USER="$DB_USER"\n\
-export DB_PASS="$DB_PASS"\n\
-export GOOGLE_DRIVE_FOLDER_ID="$GOOGLE_DRIVE_FOLDER_ID"\n\
-export GOOGLE_SHEETS_CREDENTIALS="$GOOGLE_SHEETS_CREDENTIALS"\n\
-export MASTER_SPREADSHEET_NAME="$MASTER_SPREADSHEET_NAME"\n\
-export TRUSTPILOT_JWT="$TRUSTPILOT_JWT"\n\
+RUN echo '#!/bin/bash\n\
+set -a\n\
+source /etc/environment\n\
+set +a\n\
 cd /app && /usr/local/bin/python weekly_job.py\n' > /app/run_weekly_job.sh && \
     chmod +x /app/run_weekly_job.sh
 
@@ -45,4 +39,4 @@ RUN echo "0 0 * * 1 /app/run_weekly_job.sh >> /var/log/trustpilot-cron.log 2>&1"
     touch /var/log/trustpilot-cron.log
 
 # Start cron in foreground and tail the log
-CMD cron && tail -f /var/log/trustpilot-cron.log
+CMD ["/bin/bash", "-c", "printenv | grep -v 'no_proxy' | sed 's/=/=\"/' | sed 's/$/\"/' >> /etc/environment && cron && tail -f /var/log/trustpilot-cron.log"]
