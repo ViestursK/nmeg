@@ -13,6 +13,7 @@ Print this page and check off each item as you complete it.
 - [ ] Renamed to exactly: **Trustpilot Report** (removed "Copy of")
 - [ ] Verified 3 tabs exist: `dashboard`, `helpers`, `raw_data`
 - [ ] Moved sheet to a folder (not in "My Drive" root)
+- [ ] Folder is NOT shared with anyone else (private to you)
 
 **Folder URL:** _______________________________________
 **Folder ID:** ________________________________________
@@ -72,7 +73,7 @@ Print this page and check off each item as you complete it.
 - [ ] Opened `trustpilot-analytics/.env` in text editor
 - [ ] Set `DB_PASS` to a secure password
 - [ ] Set `GOOGLE_DRIVE_FOLDER_ID` (NO trailing dash!)
-- [ ] Set `TRUSTPILOT_JWT` (the token without "jwt="prefix and semi-column (;) at the end.)
+- [ ] Set `TRUSTPILOT_JWT` (the full token)
 - [ ] Verified `MASTER_SPREADSHEET_NAME=Trustpilot Report`
 - [ ] Saved file
 

@@ -209,15 +209,12 @@ def main():
     if all(results):
         print("✅ ALL CHECKS PASSED - Ready to run!")
         print("="*70)
-        print("\nNext steps:")
-        if in_docker:
-            print("  1. Test run: docker-compose exec app python weekly_job.py --week 2026-W06")
-            print("  2. Backfill: docker-compose exec app python weekly_job.py --backfill")
-        else:
+        if not in_docker:
+            print("\nNext steps:")
             print("  1. Start containers: docker-compose up -d")
-            print("  2. Test run: python weekly_job.py --week 2026-W06")
-            print("  3. Backfill: python weekly_job.py --backfill")
-        print()
+            print("  2. Initialize database: docker-compose exec app python -m db.setup")
+            print("  3. Run backfill: docker-compose exec app python weekly_job.py --backfill")
+            print()
         return 0
     else:
         print("❌ SOME CHECKS FAILED - Fix issues above")
